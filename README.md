@@ -1,56 +1,58 @@
 # Isaac Sim / PhysX 仿真工作区
 
-这个目录同时包含流体、长视频缓存渲染、布料和软体实验。当前采用“入口保持原位、文档明确分层”的整理方式，以免破坏批处理中的绝对路径和长视频任务记录的源码哈希。
+这是一个包含 PhysX 液体、长视频缓存渲染、布料和软体实验的 Isaac Sim 6.0 工作区。正式运行入口保持在根目录；一次性探针、独立工具和历史快照已经分层收纳。
 
-## 从哪里开始
+## 正式入口
 
-### 流体主线
+### 流体与长视频
 
-- `physx_realistic_liquid.py`：当前主场景。负责 PhysX PBD 粒子、喷流/回收、原生 isosurface、场景构建、物理指标和缓存写入。
-- `run_realistic_liquid_validation.bat`：短实验与回归验证入口。
-- `liquid_video_pipeline.py`：长视频任务编排入口；支持初始化、仿真、缓存校验、分段渲染、编码和状态查询。
-- `LONG_VIDEO_PIPELINE.md`：长视频运行说明。
+- `physx_realistic_liquid.py`：PhysX PBD 流体主场景，包含喷流、粒子回收、isosurface、物理指标和缓存写入。
+- `run_realistic_liquid_validation.bat`：短实验、A/B 和回归验证。
+- `liquid_video_pipeline.py`：长视频任务编排，支持初始化、仿真、缓存校验、分段渲染和编码。
+- `liquid_video_cache.py`：长视频任务的数据契约、NPZ 缓存、manifest、来源哈希与完整性校验。
+- `render_realistic_liquid_cache.py`：缓存到 USD 网格的分段渲染器。
+- `encode_realistic_liquid_video.py`：严格帧校验和 FFmpeg 编码器。
+- `run_realistic_liquid_stage.ps1`：Windows/Isaac Sim 阶段执行与日志、显存验收。
+- `LONG_VIDEO_PIPELINE.md`：长视频操作说明。
 
-### 长视频管线模块
+### 可变形体示例
 
-- `liquid_video_cache.py`：任务配置校验、来源哈希、NPZ 表面缓存、manifest、PNG 校验和原子写入。
-- `render_realistic_liquid_cache.py`：从缓存重建 USD 网格并分段渲染。
-- `encode_realistic_liquid_video.py`：严格校验帧后调用 FFmpeg 编码。
-- `run_realistic_liquid_stage.ps1`：Windows/Isaac Sim 阶段执行、日志和显存验收。
-- `run_realistic_liquid_long_video.bat`：从 Windows 转入 WSL 编排器的通用入口。
+- `cloth_flag_hero.py` / `render_cloth_flag_video.bat`：表面可变形旗帜。
+- `soft_body_bounce_hero.py` / `render_soft_body_bounce_video.bat`：体积可变形软体跌落与反弹。
 
-### 布料与软体
+## 目录结构
 
-- `cloth_flag_hero.py` / `render_cloth_flag_video.bat`：表面可变形旗帜仿真与视频。
-- `soft_body_bounce_hero.py` / `render_soft_body_bounce_video.bat`：体积可变形模型跌落、压缩、反弹与视频。
+```text
+isaacsim_work/
+├── assets/                    # 小型、受版本控制的模型资产
+├── archive/source_snapshots/  # 历史源码快照，只用于回溯
+├── docs/                      # 架构和整理说明
+├── tools/
+│   ├── probes/cloth/          # 布料/可变形 API 探针
+│   ├── probes/physx/          # 粒子与底层 PhysX API 探针
+│   └── postprocess/           # 独立外部后处理工具
+├── output/                    # 仿真、缓存和渲染产物；Git 忽略
+└── *.py / *.bat / *.ps1       # 正式入口、基线和兼容启动器
+```
 
-## 源代码分层
+## 代码分层
 
-| 层级 | 文件 | 建议 |
+| 层级 | 位置 | 使用方式 |
 | --- | --- | --- |
-| 正式管线 | `physx_realistic_liquid.py`、`liquid_video_*.py`、`render_realistic_liquid_cache.py`、`encode_realistic_liquid_video.py` | 保持路径稳定；生产任务会记录这些文件的 SHA-256 |
-| 正式示例 | `cloth_flag_hero.py`、`soft_body_bounce_hero.py` | 可继续维护；后续可抽取共用的场景/渲染工具 |
-| 基线/旧实现 | `physx_fluid_official.py`、`physx_water_clean.py`、`physx_official_baseline.py` | 保留用于行为与材质对照，不作为新功能入口 |
-| 诊断探针 | `physx_*_probe.py`、`cloth_api_probe*.py` | 一次性 API/能力验证；不属于生产管线 |
-| 历史快照 | `backups/`、`*.bak_*` | 仅用于回溯；不要从这里启动新任务 |
-| 外部后处理 | `reconstruct_splashsurf.py` | 独立的 Splashsurf 网格重建工具，当前长视频主线不引用 |
+| 正式生产管线 | 根目录的 `physx_realistic_liquid.py`、`liquid_video_*`、渲染器和编码器 | 保持文件名和参数兼容，任务会记录 SHA-256 |
+| 正式示例 | 根目录的 `cloth_flag_hero.py`、`soft_body_bounce_hero.py` | 可继续维护和运行 |
+| 基线/旧实现 | `physx_fluid_official.py`、`physx_water_clean.py`、`physx_official_baseline.py` | 用于官方行为、材质和相机对照 |
+| 诊断探针 | `tools/probes/` | 单独运行，不从生产脚本导入 |
+| 独立后处理 | `tools/postprocess/` | 当前长视频主线不依赖 |
+| 历史快照 | `archive/source_snapshots/` | 只读回溯，不作为新任务入口 |
 
-更详细的依赖、风险和重构顺序见 [`docs/SOURCE_ARCHITECTURE.md`](docs/SOURCE_ARCHITECTURE.md)。
+详细依赖和后续重构顺序见 [`docs/SOURCE_ARCHITECTURE.md`](docs/SOURCE_ARCHITECTURE.md)。
 
-## 输出目录
+## 版本控制与可复现性
 
-`output/` 是可再生或半可再生的运行产物，不是源码。主要包括：
-
-- `output/long_video/`：正式缓存、渲染帧和视频。
-- `output/real_jet_validation_v1/`：喷流参数开发与验收。
-- 其余大量目录：材质 A/B、相机、发射器和几何探针。
-
-不要手工改写长视频任务内的 `job.json`、manifest、`*_complete.json` 或 `*_accepted.json`；它们共同构成可复现性与恢复机制。
-
-## 当前约束
-
-- 多个启动脚本硬编码 `Y:\isaacsim`、`Y:\isaacsim_work` 和 `/mnt/y/isaacsim_work`。
-- `physx_realistic_liquid.py` 在模块级解析参数并执行 Isaac Sim，暂时不能作为普通库安全导入。
-- 已初始化的长视频任务绑定了源码哈希；修改正式管线后，旧任务可能只能用对应快照继续。
-- 此目录当前不在 Git 仓库中；`.gitignore` 已准备好，便于后续初始化版本控制。
+- Git 跟踪源码、文档、启动器、历史快照和小型 assets。
+- `output/`、日志和 Python 缓存不会进入 Git。
+- 文本源码固定为 LF，以保证 Windows、WSL、Linux 和 CI 中字节一致。
+- 不要手工修改长视频任务中的 `job.json`、manifest、`*_complete.json` 或 `*_accepted.json`。
+- 未完成的长视频任务绑定了源码哈希；正式入口暂不移动或大规模格式化。
 
