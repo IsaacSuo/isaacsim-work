@@ -1,0 +1,18 @@
+# Generated simulation and render artifacts
+output/
+
+# Python caches
+__pycache__/
+*.py[cod]
+
+# Runtime logs and process markers
+*.log
+*.pid
+
+# Temporary files
+*.tmp
+*.part
+
+# Historical ad-hoc copies are kept locally, not as active source
+*.bak_*
+
