@@ -1,0 +1,21 @@
+# Keep text byte-identical across Windows, WSL, Linux, and CI.
+* text=auto
+
+*.py text eol=lf
+*.md text eol=lf
+*.json text eol=lf
+*.jsonl text eol=lf
+*.csv text eol=lf
+*.txt text eol=lf
+*.ps1 text eol=lf
+*.bat text eol=lf
+*.usda text eol=lf
+
+# Simulation, media, and geometry assets are binary.
+*.stl binary
+*.npz binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.mp4 binary
+*.zip binary
