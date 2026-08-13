@@ -11,6 +11,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+import numpy as np
+
 from fixed_topology_video import job_path, load_job
 from liquid_video_cache import atomic_write_json, file_sha256, read_jsonl, validate_png
 
@@ -23,6 +25,55 @@ def run(command: list[str], *, capture: bool = False) -> subprocess.CompletedPro
     print("[encode] " + " ".join(command), flush=True)
     return subprocess.run(command, check=True, capture_output=capture, text=True)
 
+
+def validate_temporal_continuity(
+    frames_dir: Path,
+    *,
+    start: int,
+    count: int,
+    segment_frames: int,
+) -> dict[str, Any]:
+    command = [
+        "ffmpeg", "-hide_banner", "-loglevel", "error", "-xerror",
+        "-start_number", str(start), "-i", str(frames_dir / "rgb_%06d.png"),
+        "-frames:v", str(count), "-vf", "scale=64:64:flags=area,format=gray",
+        "-pix_fmt", "gray", "-f", "rawvideo", "-",
+    ]
+    completed = subprocess.run(command, check=True, stdout=subprocess.PIPE)
+    expected_bytes = count * 64 * 64
+    if len(completed.stdout) != expected_bytes:
+        raise RuntimeError(
+            f"Temporal probe returned {len(completed.stdout)}/{expected_bytes} bytes"
+        )
+    frames = np.frombuffer(completed.stdout, dtype=np.uint8).reshape(count, 64, 64)
+    signed = frames.astype(np.int16)
+    deltas = np.abs(signed[1:] - signed[:-1]).mean(axis=(1, 2))
+    boundaries: list[dict[str, Any]] = []
+    suspects: list[int] = []
+    first_boundary = ((start // segment_frames) + 1) * segment_frames
+    for boundary in range(first_boundary, start + count, segment_frames):
+        local = boundary - start
+        if local <= 0 or local >= count - 1:
+            continue
+        left = float(deltas[local - 1])
+        right = float(deltas[local])
+        bridge = float(np.abs(signed[local + 1] - signed[local - 1]).mean())
+        threshold = max(1.0, 4.0 * bridge)
+        suspect = min(left, right) > threshold
+        boundaries.append(
+            {
+                "frame": boundary,
+                "left_mae": left,
+                "right_mae": right,
+                "bridge_mae": bridge,
+                "suspect": suspect,
+            }
+        )
+        if suspect:
+            suspects.append(boundary)
+    if suspects:
+        raise RuntimeError(f"Suspected segment-boundary bad frames: {suspects}")
+    return {"probe_size": [64, 64], "boundaries": boundaries, "suspects": suspects}
 
 def render_rows(job_dir: Path, job: dict[str, Any]) -> dict[int, dict[str, Any]]:
     complete_manifest = job_path(job_dir, job, "render_manifest")
@@ -111,6 +162,13 @@ def main() -> None:
             duplicates.append((index - 1, index))
         previous_hash = png["png_sha256"]
 
+    temporal_continuity = validate_temporal_continuity(
+        frames_dir,
+        start=args.start,
+        count=count,
+        segment_frames=int(job["render"]["segment_frames"]),
+    )
+
     output = (
         Path(args.output).resolve()
         if args.output
@@ -182,6 +240,7 @@ def main() -> None:
         "height": height,
         "checks": checks,
         "duplicate_consecutive_frames": duplicates,
+        "temporal_continuity": temporal_continuity,
         "output": str(output),
         "output_bytes": output.stat().st_size,
         "output_sha256": file_sha256(output),

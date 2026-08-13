@@ -34,6 +34,9 @@ parser.add_argument("--end", type=int, required=True)
 parser.add_argument("--run-id", required=True)
 parser.add_argument("--capture-timeout-updates", type=int, default=900)
 parser.add_argument("--mesh-settle-updates", type=int, default=4)
+parser.add_argument("--segment-warmup-updates", type=int, default=32)
+parser.add_argument("--segment-warmup-captures", type=int, default=2)
+parser.add_argument("--segment-preroll-frames", type=int, default=2)
 parser.add_argument("--no-resume", action="store_true")
 args = parser.parse_args()
 
@@ -161,6 +164,9 @@ for prim_path in simulation.get("hidden_prims", []):
 camera = UsdGeom.Camera.Get(stage, Sdf.Path(simulation["camera_prim"]))
 if not camera:
     raise RuntimeError(f"Template lacks camera {simulation['camera_prim']}")
+camera.GetPrim().CreateAttribute(
+    "omni:rtx:autoExposure:enabled", Sdf.ValueTypeNames.Bool
+).Set(False)
 viewport = get_active_viewport()
 viewport.camera_path = camera.GetPath()
 viewport.set_texture_resolution((width, height))
@@ -174,6 +180,7 @@ settings.set("/rtx/pathtracing/spp", path_spp)
 settings.set("/rtx/pathtracing/totalSpp", path_spp)
 settings.set("/rtx/pathtracing/maxBounces", 8)
 update(3)
+settings.set("/rtx/post/tonemap/exposure", 0.7)
 
 existing_rows: list[dict] = []
 accepted_resume = False
@@ -194,6 +201,33 @@ existing_by_index = {int(row["output_index"]): row for row in existing_rows}
 rendered, skipped = 0, 0
 
 try:
+    preroll_start = max(0, args.start - args.segment_preroll_frames)
+    for preroll_index in range(preroll_start, args.start):
+        preroll_row = cache_rows[preroll_index]
+        preroll = load_frame(
+            cache_dir / str(preroll_row["cache_file"]),
+            expected_sha256=str(preroll_row["cache_sha256"]),
+            expected_vertex_count=vertex_count,
+        )
+        visual.GetPointsAttr().Set(Vt.Vec3fArray.FromNumpy(preroll["points"]))
+        visual.GetExtentAttr().Set(
+            Vt.Vec3fArray(
+                [
+                    Gf.Vec3f(*(float(v) for v in preroll["bounds_min"])),
+                    Gf.Vec3f(*(float(v) for v in preroll["bounds_max"])),
+                ]
+            )
+        )
+        preroll_translate = root_prim.GetAttribute("xformOp:translate")
+        if not preroll_translate:
+            preroll_translate = UsdGeom.Xformable(root_prim).AddTranslateOp().GetAttr()
+        preroll_translate.Set(
+            Gf.Vec3d(*(float(v) for v in preroll["translate"]))
+        )
+        update(args.mesh_settle_updates)
+        preroll_path = frames_dir / f".preroll_{preroll_index:06d}.png"
+        capture(viewport, preroll_path)
+        preroll_path.unlink(missing_ok=True)
     for index in range(args.start, args.end + 1):
         output_path = frames_dir / f"rgb_{index:06d}.png"
         existing = existing_by_index.get(index)
@@ -236,7 +270,19 @@ try:
             translate_attr = UsdGeom.Xformable(root_prim).AddTranslateOp().GetAttr()
         translate_attr.Set(Gf.Vec3d(*(float(v) for v in cached["translate"])))
         started = time.perf_counter()
-        update(args.mesh_settle_updates)
+        # A fresh PathTracing process needs extra updates after its first cached
+        # pose is applied. Without this warmup, the first PNG of some segments
+        # captures cold renderer/exposure state and appears as an isolated bad
+        # frame even though the cached geometry is temporally continuous.
+        settle_updates = max(args.mesh_settle_updates, args.segment_warmup_updates) if index == args.start else args.mesh_settle_updates
+        update(settle_updates)
+        if index == args.start:
+            for warmup_index in range(args.segment_warmup_captures):
+                warmup_path = frames_dir / (
+                    f".warmup_{args.start:06d}_{warmup_index:02d}.png"
+                )
+                capture(viewport, warmup_path)
+                warmup_path.unlink(missing_ok=True)
         temporary = frames_dir / f".rgb_{index:06d}.part.png"
         capture(viewport, temporary)
         validate_png(temporary, width=width, height=height)
