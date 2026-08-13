@@ -418,7 +418,7 @@ def main() -> None:
     init.add_argument("--linear-damping", type=float, default=1.35)
     init.add_argument("--poissons-ratio", type=float, default=0.45)
     init.add_argument("--density", type=float, default=1050.0)
-    init.add_argument("--deformable-resolution", type=int, default=12)
+    init.add_argument("--deformable-resolution", type=int, default=24)
     init.add_argument("--self-collision-filter-distance", type=float, default=0.05)
     init.add_argument("--min-free-gib", type=float, default=10.0)
     init.add_argument("--vram-limit-mib", type=int, default=10752)

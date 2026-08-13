@@ -41,7 +41,7 @@ python3 /mnt/y/isaacsim_work/fixed_topology_video_pipeline.py init-soft-body \
   --linear-damping 1.1 \
   --density 1050 \
   --drop-height 3.2 \
-  --deformable-resolution 12
+  --deformable-resolution 24
 ```
 
 每组物理参数必须使用新的 `job-id`，不能覆盖已有任务。

@@ -53,7 +53,7 @@ def parse_args():
     parser.add_argument("--linear-damping", type=float, default=1.35)
     parser.add_argument("--poissons-ratio", type=float, default=0.45)
     parser.add_argument("--density", type=float, default=1050.0)
-    parser.add_argument("--deformable-resolution", type=int, default=12)
+    parser.add_argument("--deformable-resolution", type=int, default=24)
     parser.add_argument("--self-collision-filter-distance", type=float, default=0.05)
     return parser.parse_args()
 
