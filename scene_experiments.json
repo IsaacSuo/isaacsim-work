@@ -1,0 +1,404 @@
+{
+  "alley": {
+    "support_top_y": -0.444138,
+    "spawn_x": 2.068555,
+    "spawn_z": -2.20973,
+    "drop_height": 3.045862,
+    "camera_eye": [4.568555, 3.555862, 1.29027],
+    "camera_target": [2.068555, 1.355862, -2.20973],
+    "ground_prims": [],
+    "force_nonmetal_materials": [
+      "/World/Environment/_materials/Pati_AfegitSuperior"
+    ]
+  },
+  "bedroom": {
+    "support_top_y": 0.3,
+    "spawn_x": 0.1565541427199734,
+    "spawn_z": 1.2680459152794472,
+    "drop_height": 3.79,
+    "camera_eye": [-4.8, 2.5, 1.3],
+    "camera_target": [0.1565541427199734, 0.6, 1.2680459152794472],
+    "ground_prims": []
+  },
+  "city": {
+    "ground_prims": [],
+    "sanitize_ground_prims": [],
+    "force_nonmetal_materials": [
+      "/World/Environment/_materials/building3win_0",
+      "/World/Environment/_materials/building3win_13",
+      "/World/Environment/_materials/building3win_14",
+      "/World/Environment/_materials/building3win_15",
+      "/World/Environment/_materials/building3win_19",
+      "/World/Environment/_materials/building3win_20",
+      "/World/Environment/_materials/building3win_23",
+      "/World/Environment/_materials/building3win_24",
+      "/World/Environment/_materials/building3win_26",
+      "/World/Environment/_materials/building3win_29",
+      "/World/Environment/_materials/building3win_30",
+      "/World/Environment/_materials/building3win_31",
+      "/World/Environment/_materials/building3win_34",
+      "/World/Environment/_materials/building3win_35",
+      "/World/Environment/_materials/building3win_36",
+      "/World/Environment/_materials/building3win_37",
+      "/World/Environment/_materials/building3win_38",
+      "/World/Environment/_materials/building3win_41",
+      "/World/Environment/_materials/building3win_43",
+      "/World/Environment/_materials/building3win_44",
+      "/World/Environment/_materials/building3win_46",
+      "/World/Environment/_materials/building3win_47",
+      "/World/Environment/_materials/building3win_49",
+      "/World/Environment/_materials/building3win_50",
+      "/World/Environment/_materials/building3win_52",
+      "/World/Environment/_materials/building3win_53",
+      "/World/Environment/_materials/building3win_56",
+      "/World/Environment/_materials/building3win_57",
+      "/World/Environment/_materials/building3win_62",
+      "/World/Environment/_materials/building3win_63",
+      "/World/Environment/_materials/building3win_65",
+      "/World/Environment/_materials/building3win_67",
+      "/World/Environment/_materials/building3win_68",
+      "/World/Environment/_materials/building3win_70",
+      "/World/Environment/_materials/building3win_74",
+      "/World/Environment/_materials/building3win_76",
+      "/World/Environment/_materials/building3win_78"
+    ]
+  },
+  "classroom": {
+    "spawn_x": 10.0,
+    "spawn_z": 4.0,
+    "camera_eye": [6.0, 1.2, 0.0],
+    "camera_target": [10.0, -0.7, 4.0],
+    "ground_prims": [],
+    "orbit_yaw_degrees": [-35.0, -18.0, 0.0],
+    "emissive_mesh_lights": true,
+    "emissive_light_intensity": 4200.0,
+    "emissive_light_radius": 3.0,
+    "emissive_light_max_count": 4,
+    "force_nonmetal_materials": [
+      "/World/Environment/_materials/Floor",
+      "/World/Environment/_materials/Wall"
+    ],
+    "material_emission_scales": [
+      {
+        "material": "/World/Environment/_materials/ceiling",
+        "factor": 2.666674852371216
+      }
+    ],
+    "material_opacity_thresholds": [
+      {
+        "material": "/World/Environment/_materials/Window",
+        "threshold": 0.99
+      }
+    ]
+  },
+  "elevator": {
+    "ground_prims": [],
+    "orbit_yaw_degrees": [0.0, 10.0, 20.0],
+    "material_emission_textures": [
+      {
+        "material": "/World/Environment/_materials/ElevatorCLEAN2_Material_u1_v1_001",
+        "texture": "Y:/scenes/elevator/textures/Image_0.001.jpg"
+      },
+      {
+        "material": "/World/Environment/_materials/ElevatorCLEAN2_Material_u1_v2_001",
+        "texture": "Y:/scenes/elevator/textures/Image_1.001.jpg"
+      },
+      {
+        "material": "/World/Environment/_materials/ElevatorCLEAN2_Material_u2_v1_001",
+        "texture": "Y:/scenes/elevator/textures/Image_2.001.jpg"
+      },
+      {
+        "material": "/World/Environment/_materials/ElevatorCLEAN2_Material_u2_v2_001",
+        "texture": "Y:/scenes/elevator/textures/Image_3.001.jpg"
+      },
+      {
+        "material": "/World/Environment/_materials/ElevatorCLEAN2_Material_u3_v1_001",
+        "texture": "Y:/scenes/elevator/textures/Image_4.jpg"
+      }
+    ]
+  },
+  "factory": {
+    "ground_prims": [],
+    "orbit_yaw_degrees": [-35.0, -18.0, 0.0],
+    "support_top_y": -0.583746,
+    "spawn_x": 1.823781,
+    "spawn_z": 5.442124,
+    "drop_height": 2.906254,
+    "camera_eye": [6.0, 2.5, 10.0],
+    "camera_target": [1.823781, 0.5, 5.442124],
+    "force_nonmetal_materials": [
+      "/World/Environment/_materials/Brickwork1_0_13",
+      "/World/Environment/_materials/Building2_0_30",
+      "/World/Environment/_materials/Building2Windows_0_33",
+      "/World/Environment/_materials/Building3_A_0_29",
+      "/World/Environment/_materials/Building3_A_Windows_0_34",
+      "/World/Environment/_materials/Building3_B_0_16",
+      "/World/Environment/_materials/Building3_B_Windows_0_35",
+      "/World/Environment/_materials/Building3_C_0_10",
+      "/World/Environment/_materials/Building3_C_Windows_0_36",
+      "/World/Environment/_materials/Building3_D_0_32",
+      "/World/Environment/_materials/Building4_0_6",
+      "/World/Environment/_materials/Building4_Windows_0_14",
+      "/World/Environment/_materials/Building5_0_9",
+      "/World/Environment/_materials/Building5Windows_0_28",
+      "/World/Environment/_materials/Cables_0_21",
+      "/World/Environment/_materials/Concrete02_0_2",
+      "/World/Environment/_materials/Concrete_0_3",
+      "/World/Environment/_materials/Garagesign_0_19",
+      "/World/Environment/_materials/Paving_0_42",
+      "/World/Environment/_materials/RoofTopGlass_0_17",
+      "/World/Environment/_materials/Rubble_0_23",
+      "/World/Environment/_materials/Trash_0_38",
+      "/World/Environment/_materials/TrashBags_0_39",
+      "/World/Environment/_materials/TrashBin_0_40",
+      "/World/Environment/_materials/Wood02_0_24",
+      "/World/Environment/_materials/Wood3_0_25",
+      "/World/Environment/_materials/Wood_0_20"
+    ],
+    "material_input_scales": [
+      {"material": "/World/Environment/_materials/Building2Windows_0_33", "input": "opacity", "factor": 0.8509799838066101},
+      {"material": "/World/Environment/_materials/Building3_A_Windows_0_34", "input": "opacity", "factor": 0.8235290050506592},
+      {"material": "/World/Environment/_materials/Building3_B_Windows_0_35", "input": "opacity", "factor": 0.8117650151252747},
+      {"material": "/World/Environment/_materials/Building3_C_Windows_0_36", "input": "opacity", "factor": 0.8117650151252747},
+      {"material": "/World/Environment/_materials/Building5Windows_0_28", "input": "opacity", "factor": 0.8235290050506592}
+    ],
+    "material_color_scales": [
+      {"material": "/World/Environment/_materials/AirCon_0_7", "rgb": [0.61285001039505, 0.61285001039505, 0.61285001039505]},
+      {"material": "/World/Environment/_materials/Brickwork1_0_13", "rgb": [0.36651700735092163, 0.36651700735092163, 0.36651700735092163]},
+      {"material": "/World/Environment/_materials/Building2_0_30", "rgb": [0.43108901381492615, 0.43108901381492615, 0.43108901381492615]},
+      {"material": "/World/Environment/_materials/Building2Windows_0_33", "rgb": [0.43108901381492615, 0.43108901381492615, 0.43108901381492615]},
+      {"material": "/World/Environment/_materials/Building3_A_0_29", "rgb": [0.5434150099754333, 0.5434150099754333, 0.5434150099754333]},
+      {"material": "/World/Environment/_materials/Building3_A_Windows_0_34", "rgb": [0.5434150099754333, 0.5434150099754333, 0.5434150099754333]},
+      {"material": "/World/Environment/_materials/Building3_B_0_16", "rgb": [0.4963720142841339, 0.4963720142841339, 0.4963720142841339]},
+      {"material": "/World/Environment/_materials/Building3_B_Windows_0_35", "rgb": [0.4963720142841339, 0.4963720142841339, 0.4963720142841339]},
+      {"material": "/World/Environment/_materials/Building3_C_0_10", "rgb": [0.5030620098114014, 0.5030620098114014, 0.5030620098114014]},
+      {"material": "/World/Environment/_materials/Building3_C_Windows_0_36", "rgb": [0.5030620098114014, 0.5030620098114014, 0.5030620098114014]},
+      {"material": "/World/Environment/_materials/Building3_D_0_32", "rgb": [0.6266170144081116, 0.6266170144081116, 0.6266170144081116]},
+      {"material": "/World/Environment/_materials/Building4_0_6", "rgb": [0.48736000061035156, 0.48736000061035156, 0.48736000061035156]},
+      {"material": "/World/Environment/_materials/Building4_Windows_0_14", "rgb": [0.48736000061035156, 0.48736000061035156, 0.48736000061035156]},
+      {"material": "/World/Environment/_materials/Building5_0_9", "rgb": [0.41976699233055115, 0.41976699233055115, 0.41976699233055115]},
+      {"material": "/World/Environment/_materials/Building5Windows_0_28", "rgb": [0.41976699233055115, 0.41976699233055115, 0.41976699233055115]},
+      {"material": "/World/Environment/_materials/Concrete02_0_2", "rgb": [0.4596570134162903, 0.4596570134162903, 0.4596570134162903]},
+      {"material": "/World/Environment/_materials/Concrete_0_3", "rgb": [0.548117995262146, 0.548117995262146, 0.548117995262146]},
+      {"material": "/World/Environment/_materials/Drums_0_15", "rgb": [0.4692470133304596, 0.4692470133304596, 0.4692470133304596]},
+      {"material": "/World/Environment/_materials/Fence_0_27", "rgb": [0.5464509725570679, 0.5464509725570679, 0.5464509725570679]},
+      {"material": "/World/Environment/_materials/GarageDoor_0_18", "rgb": [0.446245014667511, 0.446245014667511, 0.446245014667511]},
+      {"material": "/World/Environment/_materials/Garagesign_0_19", "rgb": [0.5030620098114014, 0.5030620098114014, 0.5030620098114014]},
+      {"material": "/World/Environment/_materials/LampPosts_0_37", "rgb": [0.4737119972705841, 0.4737119972705841, 0.4737119972705841]},
+      {"material": "/World/Environment/_materials/Lights_0_11", "rgb": [0.548117995262146, 0.548117995262146, 0.548117995262146]},
+      {"material": "/World/Environment/_materials/ManholeCover_0_43", "rgb": [0.5258690118789673, 0.5258690118789673, 0.5258690118789673]},
+      {"material": "/World/Environment/_materials/Paving_0_42", "rgb": [0.5310999751091003, 0.5310999751091003, 0.5310999751091003]},
+      {"material": "/World/Environment/_materials/Pipes1_0_4", "rgb": [0.5120270252227783, 0.5120270252227783, 0.5120270252227783]},
+      {"material": "/World/Environment/_materials/Props1_0_8", "rgb": [0.5781270265579224, 0.5781270265579224, 0.5781270265579224]},
+      {"material": "/World/Environment/_materials/Props2_0_12", "rgb": [0.5258690118789673, 0.5258690118789673, 0.5258690118789673]},
+      {"material": "/World/Environment/_materials/RoofingIron_0_31", "rgb": [0.47255900502204895, 0.47255900502204895, 0.47255900502204895]},
+      {"material": "/World/Environment/_materials/RoofTopGlass_0_17", "rgb": [0.548117995262146, 0.548117995262146, 0.548117995262146]},
+      {"material": "/World/Environment/_materials/Rubble_0_23", "rgb": [0.548117995262146, 0.548117995262146, 0.548117995262146]},
+      {"material": "/World/Environment/_materials/RustyMetal_0_5", "rgb": [0.3203530013561249, 0.3203530013561249, 0.3203530013561249]},
+      {"material": "/World/Environment/_materials/SteelLight_0_26", "rgb": [0.4737119972705841, 0.4737119972705841, 0.4737119972705841]},
+      {"material": "/World/Environment/_materials/Trash_0_38", "rgb": [0.4679270088672638, 0.4679270088672638, 0.4679270088672638]},
+      {"material": "/World/Environment/_materials/TrashBags_0_39", "rgb": [0.3155440092086792, 0.3155440092086792, 0.3155440092086792]},
+      {"material": "/World/Environment/_materials/TrashBin_0_40", "rgb": [0.24508799612522125, 0.24508799612522125, 0.24508799612522125]},
+      {"material": "/World/Environment/_materials/WaterTower_0_22", "rgb": [0.36068499088287354, 0.36068499088287354, 0.36068499088287354]},
+      {"material": "/World/Environment/_materials/WireFence_0_41", "rgb": [0.08682510256767273, 0.08682510256767273, 0.08682510256767273]},
+      {"material": "/World/Environment/_materials/Wood02_0_24", "rgb": [0.42097601294517517, 0.42097601294517517, 0.42097601294517517]},
+      {"material": "/World/Environment/_materials/Wood3_0_25", "rgb": [0.42097601294517517, 0.42097601294517517, 0.42097601294517517]},
+      {"material": "/World/Environment/_materials/Wood_0_20", "rgb": [0.5464509725570679, 0.5464509725570679, 0.5464509725570679]}
+    ],
+    "material_omnipbr_overrides": [
+      {
+        "material": "/World/Environment/_materials/Road_0_1",
+        "texture": "Y:/scenes/factory/textures/Image_0.009.jpg",
+        "tint": [0.3890710473060608, 0.3890710473060608, 0.3890710473060608],
+        "metallic": 0.0,
+        "roughness": 0.0,
+        "specular": 0.0,
+        "opacity": 1.0
+      },
+      {
+        "material": "/World/Environment/_materials/Water_0_44",
+        "texture": "Y:/scenes/factory/textures/Image_42.jpg",
+        "tint": [0.3203530013561249, 0.3203530013561249, 0.3203530013561249],
+        "metallic": 1.0,
+        "roughness": 1.0,
+        "specular": 0.5,
+        "opacity": 0.2509799897670746
+      }
+    ]
+  },
+  "graffiti_warehouse": {
+    "camera_eye": [-2.644208, 3.13577, 15.474236],
+    "camera_target": [-5.144208, 1.13577, 11.974236],
+    "ground_prims": [],
+    "emissive_mesh_lights": true,
+    "emissive_light_intensity": 8000.0,
+    "emissive_light_radius": 8.0,
+    "emissive_light_max_count": 7,
+    "emissive_light_max_thickness": 0.15
+  },
+  "garage": {
+    "ground_prims": [],
+    "authored_downlights": [
+      {"name": "Object_45", "position": [-9.391981, 10.216097, 1.935238], "intensity": 40000.0, "size": [5.750471, 0.171012], "color": [1.0, 1.0, 1.0]},
+      {"name": "Object_51", "position": [-9.391982, 10.216097, 8.196634], "intensity": 40000.0, "size": [5.750471, 0.171012], "color": [1.0, 1.0, 1.0]},
+      {"name": "Object_55", "position": [4.043418, 10.216097, 1.935237], "intensity": 40000.0, "size": [5.750471, 0.171012], "color": [1.0, 1.0, 1.0]},
+      {"name": "Object_59", "position": [4.043418, 10.216097, 8.196636], "intensity": 40000.0, "size": [5.750471, 0.171012], "color": [1.0, 1.0, 1.0]},
+      {"name": "Object_63", "position": [-5.470887, 6.838058, -9.579886], "intensity": 40000.0, "size": [0.171011, 5.750474], "color": [1.0, 1.0, 1.0]},
+      {"name": "Object_67", "position": [6.180169, 6.838058, -9.579886], "intensity": 40000.0, "size": [0.171011, 5.750474], "color": [1.0, 1.0, 1.0]},
+      {"name": "Object_71", "position": [-9.970743, 16.299579, -10.558425], "intensity": 40000.0, "size": [5.750471, 0.171012], "color": [1.0, 1.0, 1.0]},
+      {"name": "Object_75", "position": [6.557990, 16.299579, -10.558426], "intensity": 40000.0, "size": [5.750471, 0.171012], "color": [1.0, 1.0, 1.0]}
+    ],
+    "force_nonmetal_materials": [
+      "/World/Environment/_materials/ButtonsWallMetal",
+      "/World/Environment/_materials/Cabinets",
+      "/World/Environment/_materials/Cans",
+      "/World/Environment/_materials/DoorCeiling",
+      "/World/Environment/_materials/Helmet",
+      "/World/Environment/_materials/PlatformWall",
+      "/World/Environment/_materials/Posster_f1",
+      "/World/Environment/_materials/Posters_2",
+      "/World/Environment/_materials/Tools",
+      "/World/Environment/_materials/WheelsSofa"
+    ],
+    "material_omniglass": [
+      {
+        "material": "/World/Environment/_materials/Glass",
+        "color": [0.8, 0.8, 0.8],
+        "ior": 1.5,
+        "roughness": 0.0,
+        "thin_walled": true,
+        "depth": 0.001,
+        "roughness_texture": false
+      }
+    ]
+  },
+  "hospital": {
+    "support_top_y": -0.5130774229783968,
+    "spawn_x": 0.0,
+    "spawn_z": 0.0,
+    "drop_height": 0.0,
+    "camera_eye": [-2.5, 1.6, -3.5],
+    "camera_target": [0.0, 0.0, 0.0],
+    "ground_prims": [],
+    "ground_patch_size": [1.36, 1.18],
+    "ground_patch_center": [-0.01, 0.0],
+    "allow_free_fall": true,
+    "local_collision_bounds": [-0.78, -3.05, -0.68, 0.77, -0.45, 0.68],
+    "authored_light_intensity_scale": 10.0,
+    "disable_studio_lights": true,
+    "authored_downlights": [
+      {"name": "Area_000", "position": [-0.08, 8.0199995, -4.9699998], "intensity": 7500.0, "size": [1.0, 1.0], "color": [1.0, 1.0, 1.0]},
+      {"name": "Area_001", "position": [4.5655751, 8.0174885, -4.9699998], "intensity": 7500.0, "size": [1.0, 1.0], "color": [1.0, 1.0, 1.0]},
+      {"name": "Area_002", "position": [4.5655751, 7.9874883, -6.1458268], "intensity": 7500.0, "size": [1.0, 1.0], "color": [1.0, 1.0, 1.0]},
+      {"name": "Area_003", "position": [-0.08, 7.993238, -6.0561366], "intensity": 7500.0, "size": [1.0, 1.0], "color": [1.0, 1.0, 1.0]},
+      {"name": "Area_004", "position": [-4.6150784, 7.993238, -6.0758882], "intensity": 7500.0, "size": [1.0, 1.0], "color": [1.0, 1.0, 1.0]},
+      {"name": "Area_005", "position": [-4.6150784, 7.993238, -5.0097528], "intensity": 7500.0, "size": [1.0, 1.0], "color": [1.0, 1.0, 1.0]},
+      {"name": "Area_006", "position": [-4.6150784, 7.983273, 6.3664851], "intensity": 7500.0, "size": [1.0, 1.0], "color": [1.0, 1.0, 1.0]},
+      {"name": "Area_007", "position": [-4.6150784, 7.993238, 5.2248034], "intensity": 7500.0, "size": [1.0, 1.0], "color": [1.0, 1.0, 1.0]},
+      {"name": "Area_008", "position": [-0.08, 7.993238, 5.2296472], "intensity": 7500.0, "size": [1.0, 1.0], "color": [1.0, 1.0, 1.0]},
+      {"name": "Area_009", "position": [4.5655751, 7.9874883, 5.2441306], "intensity": 7500.0, "size": [1.0, 1.0], "color": [1.0, 1.0, 1.0]},
+      {"name": "Area_010", "position": [4.5655751, 8.0174885, 6.3500671], "intensity": 7500.0, "size": [1.0, 1.0], "color": [1.0, 1.0, 1.0]},
+      {"name": "Area_011", "position": [-0.08, 7.9720039, 6.3560166], "intensity": 7500.0, "size": [1.0, 1.0], "color": [1.0, 1.0, 1.0]},
+      {"name": "Area_012", "position": [-5.2250786, 7.983273, 2.4411268], "intensity": 7500.0, "size": [1.0, 1.0], "color": [1.0, 1.0, 1.0]},
+      {"name": "Area_013", "position": [-5.1450787, 7.983273, -2.1088729], "intensity": 249.585, "size": [1.0, 1.0], "color": [1.0, 1.0, 1.0]}
+    ]
+  },
+  "mountain": {
+    "support_top_y": 1.8602703045,
+    "spawn_x": 5.9384468324,
+    "spawn_z": -0.4558828708,
+    "drop_height": 5.3502703045,
+    "camera_eye": [11.4384468324, 5.7272703045, 7.6441171292],
+    "camera_target": [5.9384468324, 3.1272703045, -0.4558828708],
+    "ground_prims": [],
+    "local_collision_bounds": [-12.0615531676, -8.5, -18.4558828708, 23.9384468324, 3.0, 17.5441171292],
+    "uneven_ground": true
+  },
+  "swamp": {
+    "support_top_y": -1.4436273834,
+    "ground_prims": [],
+    "uneven_ground": false,
+    "force_nonmetal_materials": [
+      "/World/Environment/_materials/Bark"
+    ],
+    "material_opacity_thresholds": [
+      {"material": "/World/Environment/_materials/Foliage_DeadGrass", "threshold": 0.5}
+    ]
+  },
+  "subway2": {
+    "support_top_y": -0.7,
+    "ground_prims": [],
+    "orbit_yaw_degrees": [-18.0, 0.0, 25.0],
+    "emissive_mesh_lights": true,
+    "emissive_light_intensity": 2500.0,
+    "emissive_light_radius": 8.0,
+    "emissive_light_max_count": 8,
+    "emissive_light_max_thickness": 0.03,
+    "force_nonmetal_materials": [
+      "/World/Environment/_materials/billboards",
+      "/World/Environment/_materials/divider",
+      "/World/Environment/_materials/glass",
+      "/World/Environment/_materials/rubber",
+      "/World/Environment/_materials/rubber_001"
+    ],
+    "material_input_scales": [
+      {"material": "/World/Environment/_materials/benchinside", "input": "metallic", "factor": 0.9988584518432617},
+      {"material": "/World/Environment/_materials/Door__0", "input": "metallic", "factor": 0.9806179404258728},
+      {"material": "/World/Environment/_materials/Door__0_001", "input": "metallic", "factor": 0.9806179404258728},
+      {"material": "/World/Environment/_materials/floor", "input": "metallic", "factor": 0.14155402779579163},
+      {"material": "/World/Environment/_materials/floor", "input": "clearcoat", "factor": 0.24491697549819946},
+      {"material": "/World/Environment/_materials/glass", "input": "roughness", "factor": 0.652288556098938},
+      {"material": "/World/Environment/_materials/metal", "input": "metallic", "factor": 0.5306851267814636},
+      {"material": "/World/Environment/_materials/metal", "input": "roughness", "factor": 0.5124446153640747},
+      {"material": "/World/Environment/_materials/rubber", "input": "roughness", "factor": 0.6462084054946899},
+      {"material": "/World/Environment/_materials/rubber_001", "input": "roughness", "factor": 0.6462084054946899},
+      {"material": "/World/Environment/_materials/walls", "input": "roughness", "factor": 0.7374110221862793},
+      {"material": "/World/Environment/_materials/walls_001", "input": "roughness", "factor": 0.7374110221862793}
+    ],
+    "material_color_scales": [
+      {
+        "material": "/World/Environment/_materials/floor",
+        "rgb": [0.21451610326766968, 0.21451610326766968, 0.21451610326766968]
+      }
+    ],
+    "material_omniglass": [
+      {
+        "material": "/World/Environment/_materials/glass",
+        "color": [0.7437632083892822, 0.9187681078910828, 0.9700679779052734],
+        "ior": 1.5,
+        "roughness": 0.5,
+        "thin_walled": true,
+        "depth": 0.001,
+        "roughness_texture": true
+      }
+    ]
+  },
+  "warehouse": {
+    "camera_eye": [6.5, 1.9, -3.0],
+    "camera_target": [0.041443, 0.1, -8.076415],
+    "ground_prims": [],
+    "orbit_yaw_degrees": [-35.0, -18.0, 0.0],
+    "emissive_mesh_lights": true,
+    "emissive_light_intensity": 16000.0,
+    "emissive_light_radius": 100.0,
+    "emissive_light_max_count": 100,
+    "ambient_light_intensity": 1000.0,
+    "environment_fill_intensity": 0.0,
+    "exposure": 1.0,
+    "force_nonmetal_materials": [
+      "/World/Environment/_materials/WetConcrete",
+      "/World/Environment/_materials/Metal"
+    ],
+    "material_omniglass": [
+      {
+        "material": "/World/Environment/_materials/Air",
+        "color": [0.8, 0.8, 0.8],
+        "ior": 1.0,
+        "roughness": 0.0,
+        "thin_walled": true,
+        "depth": 0.001,
+        "roughness_texture": false
+      }
+    ]
+  }
+}

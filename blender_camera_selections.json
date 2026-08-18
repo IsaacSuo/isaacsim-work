@@ -1,0 +1,22 @@
+{
+  "alley": {"azimuth_degrees": 155.0, "reason": "open courtyard context and clear silhouette"},
+  "apartment": {"azimuth_degrees": 275.0, "reason": "least furniture occlusion around the soft body"},
+  "bedroom": {"azimuth_degrees": 155.0, "reason": "bed surface and bedroom furniture remain readable"},
+  "city": {"azimuth_degrees": 155.0, "reason": "road markings provide depth without blocking the subject"},
+  "classroom": {"azimuth_degrees": 155.0, "reason": "inside the room with desks and floor visible"},
+  "elevator": {"azimuth_degrees": 275.0, "reason": "only unobstructed interior-facing candidate"},
+  "factory": {"azimuth_degrees": 155.0, "reason": "balanced factory context and subject separation"},
+  "garage": {"azimuth_degrees": 155.0, "reason": "clean floor plane with recognizable garage structure"},
+  "graffiti_warehouse": {"azimuth_degrees": 155.0, "reason": "open interior composition without wall clipping"},
+  "mountain": {
+    "manual_camera": true,
+    "eye_isaac": [11.406, 4.665, -4.287],
+    "target_isaac": [5.9384468324, 1.8602703045, -0.4558828708],
+    "azimuth_degrees": 35.0,
+    "reason": "side view exposes the real HDRI shadow landing on the rock surface"
+  },
+  "subway2": {"azimuth_degrees": 155.0, "reason": "vehicle and platform context with no foreground obstruction"},
+  "swamp": {"azimuth_degrees": 275.0, "reason": "puddle boundary and vegetation both remain visible"},
+  "warehouse": {"azimuth_degrees": 155.0, "reason": "clearest subject shape over the reflective floor"},
+  "hospital": {"manual_camera": true, "eye_isaac": [-2.5, 1.6, -3.5], "target_isaac": [0.0, 0.0, 0.0], "frame": 90, "reason": "validated table and pedestal view"}
+}
