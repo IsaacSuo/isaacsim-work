@@ -7,7 +7,7 @@ This audit separates three concepts that must not be conflated:
 3. an authored Blender `LIGHT` object.
 
 The source-of-truth scan is generated directly from all 14 `.blend` files with
-`tools/audit_blend_lighting.py`. Its current output is
+`tools/audit/audit_blend_lighting.py`. Its current output is
 `output/material_audit/blend_lighting_audit.json`.
 
 ## Restore decisions

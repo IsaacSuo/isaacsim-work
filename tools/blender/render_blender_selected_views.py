@@ -6,14 +6,14 @@ import subprocess
 from pathlib import Path
 
 
-WORKSPACE = Path(r"Y:\isaacsim_work")
+WORKSPACE = Path(__file__).resolve().parents[2]
 BLENDER = Path(r"D:\Program Files (x86)\Blender\blender.exe")
-RENDER_SCRIPT = WORKSPACE / "tools" / "render_blender_soft_body_cache.py"
+RENDER_SCRIPT = Path(__file__).with_name("render_blender_soft_body_cache.py")
 
 
 def parse_args():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--selections", default=str(WORKSPACE / "blender_camera_selections.json"))
+    parser.add_argument("--selections", default=str(WORKSPACE / "configs" / "blender_camera_selections.json"))
     parser.add_argument("--samples", type=int, default=32)
     parser.add_argument("--resolution", type=int, default=640)
     parser.add_argument(

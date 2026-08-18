@@ -6,15 +6,15 @@ import subprocess
 from pathlib import Path
 
 
-WORKSPACE = Path(r"Y:\isaacsim_work")
+WORKSPACE = Path(__file__).resolve().parents[2]
 BLENDER = Path(r"D:\Program Files (x86)\Blender\blender.exe")
-RENDER_SCRIPT = WORKSPACE / "tools" / "render_blender_soft_body_cache.py"
+RENDER_SCRIPT = Path(__file__).with_name("render_blender_soft_body_cache.py")
 
 
 def parse_args():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--manifest", default=r"Y:\scenes\static_scene_manifest.json")
-    parser.add_argument("--config", default=str(WORKSPACE / "scene_experiments.json"))
+    parser.add_argument("--config", default=str(WORKSPACE / "configs" / "scene_experiments.json"))
     parser.add_argument("--ground-sites", default=str(WORKSPACE / "output" / "scene_ground_sites.json"))
     parser.add_argument("--cache-root", default=str(WORKSPACE / "output" / "blender_other_scenes" / "isaac"))
     parser.add_argument("--output-root", default=str(WORKSPACE / "output" / "blender_other_scenes" / "cycles"))

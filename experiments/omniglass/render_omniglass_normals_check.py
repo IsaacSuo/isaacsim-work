@@ -10,7 +10,7 @@ from pathlib import Path
 
 import numpy as np
 
-PROJECT = Path(__file__).resolve().parent
+PROJECT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(PROJECT))
 
 from fixed_topology_video import job_path, load_frame, load_job, load_topology

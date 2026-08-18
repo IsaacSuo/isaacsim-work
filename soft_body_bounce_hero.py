@@ -347,6 +347,7 @@ import carb
 import numpy as np
 import omni.kit.app
 import omni.usd
+from soft_body.geometry import TriangleBoxCropper
 from omni.kit.viewport.utility import capture_viewport_to_file, get_active_viewport
 from omni.kit.material.library import CreateAndBindMdlMaterialFromLibrary
 from omni.physx import get_physx_simulation_interface
@@ -1185,64 +1186,8 @@ def extract_local_collision_mesh(stage, environment_prim, path, bounds):
     boundary are cut instead of discarded.  The crop is intentionally left as
     a terrain surface (no artificial vertical cap walls).
     """
-    minimum = np.asarray(bounds[:3], dtype=np.float64)
-    maximum = np.asarray(bounds[3:], dtype=np.float64)
-    if np.any(maximum <= minimum):
-        raise ValueError(f"Invalid local collision bounds: {bounds}")
-
-    output_points = []
-    output_triangles = []
-    vertex_lookup = {}
+    cropper = TriangleBoxCropper(bounds)
     source_meshes = set()
-    rejected_degenerate = 0
-    clipped_source_triangles = 0
-
-    def clip_polygon_to_plane(polygon, axis, limit, keep_greater):
-        if not polygon:
-            return []
-        result = []
-        previous = polygon[-1]
-        previous_inside = (
-            previous[axis] >= limit - 1.0e-9
-            if keep_greater
-            else previous[axis] <= limit + 1.0e-9
-        )
-        for current in polygon:
-            current_inside = (
-                current[axis] >= limit - 1.0e-9
-                if keep_greater
-                else current[axis] <= limit + 1.0e-9
-            )
-            if current_inside != previous_inside:
-                denominator = current[axis] - previous[axis]
-                if abs(denominator) > 1.0e-15:
-                    amount = (limit - previous[axis]) / denominator
-                    intersection = previous + amount * (current - previous)
-                    intersection[axis] = limit
-                    result.append(intersection)
-            if current_inside:
-                result.append(current)
-            previous = current
-            previous_inside = current_inside
-        return result
-
-    def boolean_crop_triangle(triangle):
-        polygon = [point.copy() for point in triangle]
-        for axis in range(3):
-            polygon = clip_polygon_to_plane(polygon, axis, minimum[axis], True)
-            polygon = clip_polygon_to_plane(polygon, axis, maximum[axis], False)
-            if len(polygon) < 3:
-                return []
-        return polygon
-
-    def output_index(point):
-        key = tuple(round(float(value), 7) for value in point)
-        index = vertex_lookup.get(key)
-        if index is None:
-            index = len(output_points)
-            vertex_lookup[key] = index
-            output_points.append(Gf.Vec3f(*map(float, point)))
-        return index
 
     xform_cache = UsdGeom.XformCache(Usd.TimeCode.Default())
     for prim in Usd.PrimRange(environment_prim):
@@ -1268,38 +1213,18 @@ def extract_local_collision_mesh(stage, environment_prim, path, bounds):
                     [world_points[face[0]], world_points[face[offset]], world_points[face[offset + 1]]],
                     dtype=np.float64,
                 )
-                if np.any(np.max(triangle_points, axis=0) < minimum) or np.any(
-                    np.min(triangle_points, axis=0) > maximum
-                ):
-                    continue
-                polygon = boolean_crop_triangle(triangle_points)
-                if len(polygon) < 3:
-                    continue
-                if np.any(triangle_points < minimum) or np.any(triangle_points > maximum):
-                    clipped_source_triangles += 1
-                for polygon_offset in range(1, len(polygon) - 1):
-                    cropped_triangle = (polygon[0], polygon[polygon_offset], polygon[polygon_offset + 1])
-                    area_twice = np.linalg.norm(
-                        np.cross(
-                            cropped_triangle[1] - cropped_triangle[0],
-                            cropped_triangle[2] - cropped_triangle[0],
-                        )
-                    )
-                    if not np.isfinite(area_twice) or area_twice <= 1.0e-10:
-                        rejected_degenerate += 1
-                        continue
-                    output_triangles.append(tuple(output_index(point) for point in cropped_triangle))
+                if cropper.add_triangle(triangle_points):
                     mesh_contributed = True
         if mesh_contributed:
             source_meshes.add(str(prim.GetPath()))
 
-    if not output_triangles:
+    if not cropper.triangles:
         raise RuntimeError(f"No environment triangles found inside local collision bounds: {bounds}")
     target = UsdGeom.Mesh.Define(stage, path)
-    target.CreatePointsAttr(output_points)
-    target.CreateFaceVertexCountsAttr([3] * len(output_triangles))
+    target.CreatePointsAttr([Gf.Vec3f(*map(float, point)) for point in cropper.points])
+    target.CreateFaceVertexCountsAttr([3] * len(cropper.triangles))
     target.CreateFaceVertexIndicesAttr(
-        [index for triangle in output_triangles for index in triangle]
+        [index for triangle in cropper.triangles for index in triangle]
     )
     target.CreateSubdivisionSchemeAttr().Set(UsdGeom.Tokens.none)
     target.CreateDoubleSidedAttr().Set(True)
@@ -1310,17 +1235,18 @@ def extract_local_collision_mesh(stage, environment_prim, path, bounds):
     PhysxSchema.PhysxCollisionAPI(target.GetPrim()).CreateContactOffsetAttr().Set(0.02)
     print(
         f"[environment] exact-local-collider bounds={tuple(map(float, bounds))} "
-        f"sources={len(source_meshes)} vertices={len(output_points)} "
-        f"triangles={len(output_triangles)} clipped_sources={clipped_source_triangles} "
-        f"rejected_degenerate={rejected_degenerate}"
+        f"sources={len(source_meshes)} vertices={len(cropper.points)} "
+        f"triangles={len(cropper.triangles)} "
+        f"clipped_sources={cropper.clipped_source_triangles} "
+        f"rejected_degenerate={cropper.rejected_degenerate}"
     )
     return {
-        "vertices": len(output_points),
-        "triangles": len(output_triangles),
+        "vertices": len(cropper.points),
+        "triangles": len(cropper.triangles),
         "source_meshes": sorted(source_meshes),
         "crop_method": "world_space_triangle_box_boolean_without_caps",
-        "clipped_source_triangles": clipped_source_triangles,
-        "rejected_degenerate": rejected_degenerate,
+        "clipped_source_triangles": cropper.clipped_source_triangles,
+        "rejected_degenerate": cropper.rejected_degenerate,
     }
 
 

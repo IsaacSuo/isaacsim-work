@@ -1,19 +1,22 @@
 # 源代码架构与整理状态
 
-更新时间：2026-08-13
+更新时间：2026-08-19
 
 ## 当前代码线
 
-工作区由四条相对独立的代码线组成：
+仓库包含五条相对独立的代码线：
 
-1. PhysX 液体主场景和喷流实验。
-2. 10 秒长视频缓存、分段渲染与编码管线。
-3. 表面可变形布料旗帜。
-4. 体积可变形软体跌落与反弹。
+1. PhysX PBD 液体与喷流实验。
+2. 可恢复的长视频缓存、分段渲染和编码管线。
+3. 表面可变形布料。
+4. 体积软体、多场景静态碰撞与动画 USD 导出。
+5. Blender Cycles 材质、灯光、相机和最终视频渲染。
 
-输出约 78.8 GB，源码不足 1 MB。源码整理优先关注入口、职责、依赖和可测试性；输出仅作为运行记录。
+生成数据集中在 `output/`，不参与源码结构设计，也不进入 Git。
 
-## 长视频依赖
+## 正式依赖
+
+### 流体长视频
 
 ```text
 liquid_video_pipeline.py
@@ -21,81 +24,70 @@ liquid_video_pipeline.py
 ├── encode_realistic_liquid_video.py
 ├── run_realistic_liquid_stage.ps1
 │   ├── physx_realistic_liquid.py
-│   │   └── liquid_video_cache.py
 │   └── render_realistic_liquid_cache.py
-│       └── liquid_video_cache.py
 └── output/long_video/<job>/job.json
 ```
 
-`liquid_video_pipeline.py` 是控制面；Isaac Sim 中实际执行的是 `physx_realistic_liquid.py` 和 `render_realistic_liquid_cache.py`；`liquid_video_cache.py` 是两侧共享的数据契约。
+### 多场景软体与 Blender 视频
 
-## 正式源文件
+```text
+configs/scene_experiments.json
+└── tools/scenes/run_static_scene_videos.py
+    └── soft_body_bounce_hero.py
+        └── output/.../soft_body_blender.usdc
 
-### `physx_realistic_liquid.py`
+configs/blender_camera_selections.json
+└── tools/blender/render_blender_selected_videos.py
+    ├── tools/blender/render_blender_soft_body_cache.py
+    ├── Blender scene.blend + Cycles
+    └── FFmpeg
+```
 
-- 3286 行、69 个命令行参数，是核心和最大文件。
-- 同时处理参数、喷射器规划、粒子系统、碰撞体、材质、灯光、相机、回收、喷流统计、仿真循环、渲染和缓存。
-- 支持 `block`、`stream`、`emitter` 三种源模式。
-- 长视频模式会核对自身 SHA-256 与任务配置。
-- 当前在模块级解析参数并启动 Isaac Sim，不适合作为普通库导入。
+`soft_body_bounce_hero.py` 保持根目录兼容入口，因为固定拓扑管线和已有任务会记录它的文件名与 SHA-256。
 
-### `liquid_video_cache.py`
+## 分层规则
 
-- 纯 Python 数据层，适合优先补测试。
-- 管理不可变配置、provenance、SHA-256、NPZ 表面网格、JSONL manifest、PNG 校验和原子写入。
-- `SurfaceCacheTakeWriter` 强制帧号、物理步和时间连续。
-
-### `liquid_video_pipeline.py`
-
-- WSL 侧编排 CLI。
-- 命令包括 `init`、`status`、`simulate`、`validate-cache`、`render-segment`、`render-pilot`、`render-all`、`finalize-render` 和 `encode`。
-- 正式渲染拆成非重叠分段，并要求显式确认生产帧数。
-
-### `run_realistic_liquid_stage.ps1`
-
-- Windows 侧包装器，启动 Isaac Sim Python。
-- 采集日志和 GPU 使用，验证完成标记后写入 accepted 标记。
-
-### `render_realistic_liquid_cache.py`
-
-- 将缓存表面注入渲染模板的 `/World/CachedLiquid`。
-- 支持分段恢复、临时文件原子替换和 manifest 验收。
-
-### `encode_realistic_liquid_video.py`
-
-- 编码前核对 PNG、尺寸、帧号、来源哈希和渲染 manifest。
-- 编码后复核编解码器、帧率、时长、帧数和色彩标签。
-
-## 可变形体代码
-
-- `cloth_flag_hero.py`：610 行，构建表面可变形旗帜和运动杆。
-- `soft_body_bounce_hero.py`：863 行，构建体积可变形层级并测量碰撞、压缩和反弹。
-
-两个文件重复实现了材质创建/绑定、立方体、look-at、矩形灯、阶段日志和截图工具。后续可抽取 `sim_common/studio.py`。
-
-## 已完成的目录整理
-
-- 布料 API 探针：`tools/probes/cloth/`。
-- 粒子与接口探针：`tools/probes/physx/`。
-- Splashsurf 后处理：`tools/postprocess/`。
-- 历史源文件：`archive/source_snapshots/`。
-- 正式入口继续留在根目录，避免破坏批处理绝对路径和任务 provenance。
+| 位置 | 职责 | 稳定性 |
+| --- | --- | --- |
+| 根目录正式脚本 | 用户入口、缓存协议、兼容启动器 | 保持名称与参数兼容 |
+| `configs/` | 可审查、可复现的场景和相机参数 | 正式输入 |
+| `tools/scenes/` | 多场景准备、PhysX 批处理和静态预览 | 正式工具 |
+| `tools/blender/` | Blender 导入、材质、灯光、相机与编码 | 正式工具 |
+| `tools/audit/` | 只读诊断、测量、对比和可视化检查 | 非生产依赖 |
+| `tools/probes/` | Isaac/PhysX API 能力实验 | 非生产依赖 |
+| `experiments/` | 保留的阶段性材质或场景实验 | 不作为正式入口 |
+| `archive/` | 历史快照 | 只读回溯 |
 
 ## 主要技术债
 
-1. `physx_realistic_liquid.py` 职责过多。
-2. 多个脚本在模块级解析 CLI 并初始化 `SimulationApp`，存在导入副作用。
-3. 启动器硬编码 `Y:\isaacsim`、`Y:\isaacsim_work` 和 `/mnt/y/isaacsim_work`。
-4. 布料与软体示例存在重复 studio 工具。
-5. 纯数学和缓存契约尚无独立自动化测试套件。
+### `physx_realistic_liquid.py`
 
-## 推荐的下一轮顺序
+- 3286 行，同时承担参数、场景、粒子、材质、指标、渲染和缓存职责。
+- 模块导入时会解析参数并启动 `SimulationApp`。
+- 受已有长视频任务源码哈希约束，拆分时必须保留薄兼容入口。
 
-1. 在不改变命令行参数的前提下，将 CLI 收口到 `main(argv=None)`。
-2. 为 `liquid_video_cache.py` 和喷流纯数学函数建立测试。
-3. 抽取布料/软体共用 studio 工具。
-4. 将 `physx_realistic_liquid.py` 拆为 `liquid/scene.py`、`emitter.py`、`metrics.py`、`rendering.py` 和 `cache_adapter.py`。
-5. 保留原 `physx_realistic_liquid.py` 作为薄兼容入口。
+### `soft_body_bounce_hero.py`
 
-未完成的 `faucet_10s_v1` 与 `faucet_10s_v1_laminar` 仍绑定旧源码哈希。进行正式模块拆分前，应冻结这些任务或确保对应源码快照可供续跑。
+- 当前约 2200 行；第一批纯几何裁剪逻辑已抽到 `soft_body/geometry.py`。
+- 混合了参数解析、软体生成、环境材质修复、灯光恢复、局部精准碰撞、物理验收、截图和 Blender USD 导出。
+- 本轮只整理外围目录，不在缺少完整 Isaac 回归的情况下贸然拆分算法。
 
+推荐后续拆成：
+
+```text
+soft_body/
+├── collision.py       # 网格清理、局部裁剪与精确碰撞
+├── environment.py     # USD 环境、材质与灯光恢复
+├── deformable.py      # 软体层级和 PhysX 参数
+├── validation.py      # 穿透、压缩、反弹与自由坠落验收
+└── blender_export.py  # 固定拓扑动画 USD
+```
+
+根目录 `soft_body_bounce_hero.py` 最终只保留 CLI 和执行编排。
+
+## 下一轮重构顺序
+
+1. 继续为配置解析增加纯 Python 单元测试。
+2. 运行 apartment、hospital、mountain 三类代表场景的缓存回归。
+3. 再抽取环境材质、灯光与 Blender USD 导出模块。
+4. 最后处理 `physx_realistic_liquid.py`，并保留旧任务可恢复性。

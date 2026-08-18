@@ -8,7 +8,10 @@ from pathlib import Path
 os.environ.setdefault("OMNI_KIT_ACCEPT_EULA", "YES")
 
 parser = argparse.ArgumentParser(description=__doc__)
-parser.add_argument("--config", default=r"Y:\isaacsim_work\scene_experiments.json")
+parser.add_argument(
+    "--config",
+    default=str(Path(__file__).resolve().parents[2] / "configs" / "scene_experiments.json"),
+)
 parser.add_argument("--scenes-root", default=r"Y:\scenes")
 parser.add_argument("--output", required=True)
 args = parser.parse_args()

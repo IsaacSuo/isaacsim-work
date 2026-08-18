@@ -7,10 +7,13 @@ import subprocess
 from pathlib import Path
 
 
+WORKSPACE = Path(__file__).resolve().parents[2]
+
+
 def parse_args():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--manifest", default=r"Y:\scenes\static_scene_manifest.json")
-    parser.add_argument("--config", default=r"Y:\isaacsim_work\scene_experiments.json")
+    parser.add_argument("--config", default=str(WORKSPACE / "configs" / "scene_experiments.json"))
     parser.add_argument("--ground-sites", default=r"Y:\isaacsim_work\output\scene_ground_sites.json")
     parser.add_argument("--only", nargs="*", default=None)
     parser.add_argument("--skip", nargs="*", default=("apartment",))
@@ -24,7 +27,6 @@ def parse_args():
 
 
 ARGS = parse_args()
-WORKSPACE = Path(r"Y:\isaacsim_work")
 ISAAC_PYTHON = Path(r"Y:\isaacsim\python.bat")
 HERO_SCRIPT = WORKSPACE / "soft_body_bounce_hero.py"
 MODEL = WORKSPACE / "assets" / "soft_body_elephant.stl"

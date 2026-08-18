@@ -9,7 +9,10 @@ from isaacsim import SimulationApp
 
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument("--manifest", default=r"Y:\scenes\static_scene_manifest.json")
-parser.add_argument("--config", default=r"Y:\isaacsim_work\scene_experiments.json")
+parser.add_argument(
+    "--config",
+    default=str(Path(__file__).resolve().parents[2] / "configs" / "scene_experiments.json"),
+)
 parser.add_argument("--only", nargs="*", default=None)
 parser.add_argument("--output", default=r"Y:\isaacsim_work\output\scene_ground_sites.json")
 args = parser.parse_args()

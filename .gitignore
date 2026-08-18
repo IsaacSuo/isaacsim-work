@@ -1,6 +1,9 @@
 # Generated simulation and render artifacts
 output/
 
+# Large local model collection; curated runtime assets stay in assets/ root
+assets/archieved_models/
+
 # Python caches
 __pycache__/
 *.py[cod]
@@ -15,4 +18,3 @@ __pycache__/
 
 # Historical ad-hoc copies are kept locally, not as active source
 *.bak_*
-
