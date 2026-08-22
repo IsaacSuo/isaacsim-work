@@ -7,9 +7,19 @@
     "camera_eye": [4.568555, 3.555862, 1.29027],
     "camera_target": [2.068555, 1.355862, -2.20973],
     "ground_prims": [],
+    "local_collision_bounds": [-1.931445, -1.444138, -6.20973, 6.068555, -0.194138, 1.79027],
     "force_nonmetal_materials": [
       "/World/Environment/_materials/Pati_AfegitSuperior"
     ]
+  },
+  "apartment": {
+    "support_top_y": -0.5347516563954644,
+    "spawn_x": -4.8268299576408,
+    "spawn_z": 6.707096300106797,
+    "drop_height": 2.955248,
+    "ground_prims": [],
+    "collision_environment_prim": "/World/Apartment",
+    "local_collision_bounds": [-8.8268299576408, -1.5347516563954644, 2.707096300106797, -0.8268299576408, -0.2847516563954644, 10.707096300106797]
   },
   "bedroom": {
     "support_top_y": 0.3,
@@ -18,10 +28,12 @@
     "drop_height": 3.79,
     "camera_eye": [-4.8, 2.5, 1.3],
     "camera_target": [0.1565541427199734, 0.6, 1.2680459152794472],
-    "ground_prims": []
+    "ground_prims": [],
+    "local_collision_bounds": [-3.8434458572800266, -0.7, -2.731954084720553, 4.156554142719973, 0.55, 5.268045915279447]
   },
   "city": {
     "ground_prims": [],
+    "local_collision_bounds": [-21.919126980077067, -1.612503203402579, 0.631174270856875, -13.919126980077067, -0.3625032034025791, 8.631174270856875],
     "sanitize_ground_prims": [],
     "force_nonmetal_materials": [
       "/World/Environment/_materials/building3win_0",
@@ -69,6 +81,7 @@
     "camera_eye": [6.0, 1.2, 0.0],
     "camera_target": [10.0, -0.7, 4.0],
     "ground_prims": [],
+    "local_collision_bounds": [6.0, -2.9669698882765785, 0.0, 14.0, -1.7169698882765785, 8.0],
     "orbit_yaw_degrees": [-35.0, -18.0, 0.0],
     "emissive_mesh_lights": true,
     "emissive_light_intensity": 4200.0,
@@ -93,6 +106,7 @@
   },
   "elevator": {
     "ground_prims": [],
+    "local_collision_bounds": [-8.359613495455023, -1.6626241923623326, -7.6798367986543585, -0.359613495455023, -0.4126241923623326, 0.3201632013456415],
     "orbit_yaw_degrees": [0.0, 10.0, 20.0],
     "material_emission_textures": [
       {
@@ -126,6 +140,7 @@
     "drop_height": 2.906254,
     "camera_eye": [6.0, 2.5, 10.0],
     "camera_target": [1.823781, 0.5, 5.442124],
+    "local_collision_bounds": [-2.176219, -1.583746, 1.442124, 5.823781, -0.333746, 9.442124],
     "force_nonmetal_materials": [
       "/World/Environment/_materials/Brickwork1_0_13",
       "/World/Environment/_materials/Building2_0_30",
@@ -230,6 +245,7 @@
     "camera_eye": [-2.644208, 3.13577, 15.474236],
     "camera_target": [-5.144208, 1.13577, 11.974236],
     "ground_prims": [],
+    "local_collision_bounds": [-9.144208230678233, -1.664229606332884, 7.974236092889466, -1.144208230678233, -0.4142296063328839, 15.974236092889466],
     "emissive_mesh_lights": true,
     "emissive_light_intensity": 8000.0,
     "emissive_light_radius": 8.0,
@@ -238,6 +254,7 @@
   },
   "garage": {
     "ground_prims": [],
+    "local_collision_bounds": [-6.589997097482784, -1.565453050186243, -2.3257969571525547, 1.410002902517216, -0.315453050186243, 5.674203042847445],
     "authored_downlights": [
       {"name": "Object_45", "position": [-9.391981, 10.216097, 1.935238], "intensity": 40000.0, "size": [5.750471, 0.171012], "color": [1.0, 1.0, 1.0]},
       {"name": "Object_51", "position": [-9.391982, 10.216097, 8.196634], "intensity": 40000.0, "size": [5.750471, 0.171012], "color": [1.0, 1.0, 1.0]},
@@ -317,6 +334,7 @@
   "swamp": {
     "support_top_y": -1.4436273834,
     "ground_prims": [],
+    "local_collision_bounds": [-3.946067303812994, -2.4436273834, -3.989099241612059, 4.053932696187006, -1.1936273834, 4.010900758387941],
     "uneven_ground": false,
     "force_nonmetal_materials": [
       "/World/Environment/_materials/Bark"
@@ -328,6 +346,7 @@
   "subway2": {
     "support_top_y": -0.7,
     "ground_prims": [],
+    "local_collision_bounds": [-4.0, -1.7, 6.500383104690188, 4.0, -0.45, 14.500383104690188],
     "orbit_yaw_degrees": [-18.0, 0.0, 25.0],
     "emissive_mesh_lights": true,
     "emissive_light_intensity": 2500.0,
@@ -377,6 +396,7 @@
     "camera_eye": [6.5, 1.9, -3.0],
     "camera_target": [0.041443, 0.1, -8.076415],
     "ground_prims": [],
+    "local_collision_bounds": [-3.9585569180626433, -1.5000030728118722, -12.07641493563674, 4.041443081937357, -0.2500030728118722, -4.07641493563674],
     "orbit_yaw_degrees": [-35.0, -18.0, 0.0],
     "emissive_mesh_lights": true,
     "emissive_light_intensity": 16000.0,

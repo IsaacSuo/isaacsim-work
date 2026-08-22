@@ -1,8 +1,11 @@
 # Generated simulation and render artifacts
 output/
+scenes/
+BUNDLE_MANIFEST.sha256
 
 # Large local model collection; curated runtime assets stay in assets/ root
 assets/archieved_models/
+assets/simulation_ready_models/
 
 # Python caches
 __pycache__/

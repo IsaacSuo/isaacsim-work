@@ -1,7 +1,7 @@
 """Import an Isaac soft-body USD cache into the current .blend and render it.
 
 Run with Blender, for example:
-  blender scene.blend --background --python this_script.py -- CACHE OUTPUT [FRAMES] [SAMPLES] [RESOLUTION] [SELECTED_FRAMES] [STOP_WHEN_OUT_OF_VIEW] [EYE_X EYE_Y EYE_Z TARGET_X TARGET_Y TARGET_Z]
+  blender scene.blend --background --python this_script.py -- CACHE OUTPUT [FRAMES] [SAMPLES] [RESOLUTION] [SELECTED_FRAMES] [STOP_WHEN_OUT_OF_VIEW] [EYE_X EYE_Y EYE_Z TARGET_X TARGET_Y TARGET_Z] [AUTO_ORBIT] [AUTO_RADIUS] [AUTO_ELEVATION] [AUTO_AZIMUTHS] [TX TY TZ] [MATERIAL_PRESET]
 """
 
 import json
@@ -45,7 +45,18 @@ AUTO_CAMERA_AZIMUTHS = (
 CACHE_TRANSLATION = (
     Vector(tuple(float(value) for value in argv[17:20])) if len(argv) >= 20 else Vector((0.0, 0.0, 0.0))
 )
+MATERIAL_PRESETS = (
+    [value.strip().lower() for value in argv[20].split(",") if value.strip()]
+    if len(argv) >= 21
+    else ["silicone_cloudy"]
+)
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+
+
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+SCENES_ROOT = Path(os.environ.get("SCENES_ROOT", PROJECT_ROOT / "scenes")).expanduser()
+if not SCENES_ROOT.is_dir() and os.name == "nt" and Path(r"Y:\scenes").is_dir():
+    SCENES_ROOT = Path(r"Y:\scenes")
 
 
 def configure_workspace_hdri(scene, scene_name):
@@ -77,7 +88,7 @@ def configure_workspace_hdri(scene, scene_name):
         hdri_name = os.environ.get("APARTMENT_HDRI_NAME", "charolettenbrunn_park_4k.hdr")
     else:
         hdri_name = "bryanston_park_sunrise_8k.exr"
-    hdri_path = Path(r"Y:\scenes\HDRI") / hdri_name
+    hdri_path = SCENES_ROOT / "HDRI" / hdri_name
     if not hdri_path.is_file():
         raise FileNotFoundError(hdri_path)
     if world is None:
@@ -88,7 +99,20 @@ def configure_workspace_hdri(scene, scene_name):
     nodes.clear()
     output = nodes.new("ShaderNodeOutputWorld")
     background = nodes.new("ShaderNodeBackground")
-    hdri_strength = 0.65
+    # Keep already bright/open scenes at the established baseline and add only
+    # modest fill where the validated camera lands in a genuinely dark area.
+    # Indoor scenes without authored Blender lights still need the HDRI as
+    # their only physically meaningful environment fill.
+    hdri_strengths = {
+        "alley": 1.25,
+        "bedroom": 1.10,
+        "classroom": 1.05,
+        "elevator": 2.00,
+        "factory": 1.00,
+        "swamp": 0.95,
+        "warehouse": 1.25,
+    }
+    hdri_strength = hdri_strengths.get(scene_name, 0.65)
     if scene_name == "apartment":
         hdri_strength = float(os.environ.get("APARTMENT_HDRI_STRENGTH", "0.65"))
     background.inputs["Strength"].default_value = hdri_strength
@@ -115,6 +139,66 @@ def configure_workspace_hdri(scene, scene_name):
         "rotation_degrees": rotation_degrees,
         "authored_lights_preserved": True,
     }
+
+
+def tune_authored_scene_lights(scene, scene_name):
+    """Apply restrained scene-specific boosts to real authored light objects."""
+    energy_scales = {
+        # This enclosed scene contains one point light and two area lights;
+        # strengthening them is more plausible than relying on exterior fill.
+        "elevator": 5.00,
+    }
+    scale = energy_scales.get(scene_name, 1.0)
+    adjusted = []
+    if scale != 1.0:
+        adjusted_data = set()
+        for obj in scene.objects:
+            if obj.type != "LIGHT":
+                continue
+            data_key = obj.data.as_pointer()
+            if data_key in adjusted_data:
+                continue
+            adjusted_data.add(data_key)
+            previous_energy = float(obj.data.energy)
+            obj.data.energy = previous_energy * scale
+            adjusted.append(
+                {
+                    "name": obj.name,
+                    "type": obj.data.type,
+                    "previous_energy": previous_energy,
+                    "new_energy": float(obj.data.energy),
+                }
+            )
+    return {"applied": bool(adjusted), "scale": scale, "lights": adjusted}
+
+
+def tune_authored_emissive_lights(scene_name):
+    """Boost only materials verified to belong to authored room luminaires."""
+    material_scales = {
+        "bedroom": {"Light": 3.00},
+        "classroom": {"ceiling": 2.00},
+    }
+    adjusted = []
+    for material_name, scale in material_scales.get(scene_name, {}).items():
+        material = bpy.data.materials.get(material_name)
+        if material is None or not material.use_nodes:
+            continue
+        for node in material.node_tree.nodes:
+            if node.bl_idname != "ShaderNodeBsdfPrincipled":
+                continue
+            emission_strength = node.inputs.get("Emission Strength")
+            if emission_strength is None:
+                continue
+            previous_strength = float(emission_strength.default_value)
+            emission_strength.default_value = previous_strength * scale
+            adjusted.append(
+                {
+                    "material": material_name,
+                    "previous_strength": previous_strength,
+                    "new_strength": float(emission_strength.default_value),
+                }
+            )
+    return {"applied": bool(adjusted), "materials": adjusted}
 
 
 def configure_scene_shadow_key(scene, scene_name):
@@ -160,7 +244,7 @@ def configure_scene_shadow_key(scene, scene_name):
     }
 
 
-def configure_apartment_baked_shadow_overlay(scene, soft_body):
+def configure_apartment_baked_shadow_overlay(scene, soft_bodies):
     """Add a linked shadow catcher without relighting the baked apartment scene."""
     if CACHE_PATH.parent.name != "apartment" or os.environ.get("APARTMENT_SHADOW_CATCHER", "0") != "1":
         return {"applied": False}
@@ -189,7 +273,8 @@ def configure_apartment_baked_shadow_overlay(scene, soft_body):
     receivers = bpy.data.collections.new("ApartmentShadowReceivers")
     blockers = bpy.data.collections.new("ApartmentShadowBlockers")
     receivers.objects.link(catcher)
-    blockers.objects.link(soft_body)
+    for soft_body in soft_bodies:
+        blockers.objects.link(soft_body)
     light.light_linking.receiver_collection = receivers
     light.light_linking.blocker_collection = blockers
     return {
@@ -271,7 +356,7 @@ def configure_apartment_hdri_shadow_access(original_objects):
     }
 
 
-def configure_apartment_authored_sun(scene, original_objects, soft_body):
+def configure_apartment_authored_sun(scene, original_objects, soft_bodies):
     """Recreate the apartment's directional light from its imported Sun marker.
 
     The source asset stores ``Sun`` as an EMPTY parented to ``Root`` rather than
@@ -308,7 +393,8 @@ def configure_apartment_authored_sun(scene, original_objects, soft_body):
     # reconstructed key light's blockers to the simulated body so the imported
     # room shell does not block the marker direction a second time.
     blockers = bpy.data.collections.new("ApartmentAuthoredSunBlockers")
-    blockers.objects.link(soft_body)
+    for soft_body in soft_bodies:
+        blockers.objects.link(soft_body)
     light.light_linking.blocker_collection = blockers
     return {
         "applied": True,
@@ -345,6 +431,153 @@ def principled_input(node, *names):
     return None
 
 
+def set_principled_value(principled, value, *names):
+    socket = principled_input(principled, *names)
+    if socket is not None:
+        socket.default_value = value
+
+
+def add_micro_bump(material, principled, *, scale, detail, roughness, strength, distance, name):
+    nodes = material.node_tree.nodes
+    noise = nodes.new("ShaderNodeTexNoise")
+    noise.name = f"{name}MicroVariation"
+    noise.inputs["Scale"].default_value = scale
+    noise.inputs["Detail"].default_value = detail
+    noise.inputs["Roughness"].default_value = roughness
+    bump = nodes.new("ShaderNodeBump")
+    bump.name = f"{name}MicroBump"
+    bump.inputs["Strength"].default_value = strength
+    bump.inputs["Distance"].default_value = distance
+    material.node_tree.links.new(noise.outputs["Fac"], bump.inputs["Height"])
+    normal = principled_input(principled, "Normal")
+    if normal is not None:
+        material.node_tree.links.new(bump.outputs["Normal"], normal)
+
+
+def create_silicone_material(scene_name):
+    material = bpy.data.materials.new("TransparentSilicone_Cycles")
+    material.use_nodes = True
+    nodes = material.node_tree.nodes
+    principled = next(node for node in nodes if node.type == "BSDF_PRINCIPLED")
+    set_principled_value(principled, (0.965, 0.985, 1.0, 1.0), "Base Color")
+    set_principled_value(principled, 0.14, "Roughness")
+    set_principled_value(principled, 1.41, "IOR")
+    set_principled_value(principled, 1.0, "Transmission Weight", "Transmission")
+    set_principled_value(principled, 0.025, "Coat Weight", "Coat")
+
+    material_output = next(node for node in nodes if node.type == "OUTPUT_MATERIAL")
+    volume_absorption = nodes.new("ShaderNodeVolumeAbsorption")
+    volume_absorption.name = "SiliconeThicknessAbsorption"
+    volume_absorption.inputs["Color"].default_value = (0.82, 0.92, 1.0, 1.0)
+    volume_absorption.inputs["Density"].default_value = 0.045
+    volume_scatter = nodes.new("ShaderNodeVolumeScatter")
+    volume_scatter.name = "SiliconeCloudiness"
+    volume_scatter.inputs["Color"].default_value = (0.96, 0.985, 1.0, 1.0)
+    volume_scatter.inputs["Density"].default_value = 0.9
+    volume_scatter.inputs["Anisotropy"].default_value = 0.18
+    volume_mix = nodes.new("ShaderNodeAddShader")
+    volume_mix.name = "SiliconeVolume"
+    material.node_tree.links.new(volume_absorption.outputs["Volume"], volume_mix.inputs[0])
+    material.node_tree.links.new(volume_scatter.outputs["Volume"], volume_mix.inputs[1])
+    material.node_tree.links.new(volume_mix.outputs[0], material_output.inputs["Volume"])
+
+    shadow_transmission = None
+    if scene_name in {"apartment", "mountain"}:
+        surface = material_output.inputs["Surface"]
+        original_surface = surface.links[0].from_socket
+        material.node_tree.links.remove(surface.links[0])
+        light_path = nodes.new("ShaderNodeLightPath")
+        light_path.name = "SiliconeShadowRaySelector"
+        transparent_shadow = nodes.new("ShaderNodeBsdfTransparent")
+        transparent_shadow.name = "SiliconeClearShadowRay"
+        transparent_shadow.inputs["Color"].default_value = (1.0, 1.0, 1.0, 1.0)
+        diffuse_shadow = nodes.new("ShaderNodeBsdfDiffuse")
+        diffuse_shadow.name = "SiliconeShadowBlocker"
+        diffuse_shadow.inputs["Color"].default_value = (0.8, 0.88, 0.95, 1.0)
+        shadow_value = float(os.environ.get("SILICONE_SHADOW_TRANSMISSION", "0.48"))
+        shadow_attenuation = nodes.new("ShaderNodeMixShader")
+        shadow_attenuation.name = "SiliconePartialShadowBlocker"
+        shadow_attenuation.inputs[0].default_value = 1.0 - shadow_value
+        material.node_tree.links.new(transparent_shadow.outputs[0], shadow_attenuation.inputs[1])
+        material.node_tree.links.new(diffuse_shadow.outputs[0], shadow_attenuation.inputs[2])
+        shadow_mix = nodes.new("ShaderNodeMixShader")
+        shadow_mix.name = "SiliconeSurfaceWithShadowTransmission"
+        material.node_tree.links.new(original_surface, shadow_mix.inputs[1])
+        material.node_tree.links.new(shadow_attenuation.outputs[0], shadow_mix.inputs[2])
+        material.node_tree.links.new(light_path.outputs["Is Shadow Ray"], shadow_mix.inputs[0])
+        material.node_tree.links.new(shadow_mix.outputs[0], surface)
+        shadow_transmission = [shadow_value, shadow_value, shadow_value, 1.0]
+
+    add_micro_bump(
+        material,
+        principled,
+        scale=7.0,
+        detail=3.0,
+        roughness=0.55,
+        strength=0.018,
+        distance=0.0004,
+        name="Silicone",
+    )
+    return material, shadow_transmission
+
+
+def create_rough_white_material():
+    material = bpy.data.materials.new("RoughWhiteFilm_Hard")
+    material.use_nodes = True
+    principled = next(node for node in material.node_tree.nodes if node.type == "BSDF_PRINCIPLED")
+    set_principled_value(principled, (0.82, 0.84, 0.86, 1.0), "Base Color")
+    set_principled_value(principled, 0.72, "Roughness")
+    set_principled_value(principled, 0.0, "Metallic")
+    set_principled_value(principled, 1.46, "IOR")
+    set_principled_value(principled, 0.0, "Transmission Weight", "Transmission")
+    set_principled_value(principled, 0.04, "Coat Weight", "Coat")
+    add_micro_bump(
+        material,
+        principled,
+        scale=38.0,
+        detail=5.0,
+        roughness=0.7,
+        strength=0.16,
+        distance=0.0012,
+        name="RoughWhiteFilm",
+    )
+    return material, None
+
+
+def create_brushed_metal_material():
+    material = bpy.data.materials.new("BrushedMetal_Hard")
+    material.use_nodes = True
+    principled = next(node for node in material.node_tree.nodes if node.type == "BSDF_PRINCIPLED")
+    set_principled_value(principled, (0.42, 0.46, 0.52, 1.0), "Base Color")
+    set_principled_value(principled, 0.24, "Roughness")
+    set_principled_value(principled, 1.0, "Metallic")
+    set_principled_value(principled, 0.36, "Anisotropic IOR Level", "Anisotropic")
+    set_principled_value(principled, 0.0, "Transmission Weight", "Transmission")
+    add_micro_bump(
+        material,
+        principled,
+        scale=95.0,
+        detail=2.0,
+        roughness=0.45,
+        strength=0.055,
+        distance=0.00035,
+        name="BrushedMetal",
+    )
+    return material, None
+
+
+def create_soft_body_material(preset, scene_name):
+    creators = {
+        "silicone_cloudy": lambda: create_silicone_material(scene_name),
+        "rough_white": create_rough_white_material,
+        "brushed_metal": create_brushed_metal_material,
+    }
+    try:
+        return creators[preset]()
+    except KeyError as error:
+        raise ValueError(f"Unknown material preset: {preset}; expected one of {sorted(creators)}") from error
+
+
 if not CACHE_PATH.is_file():
     raise FileNotFoundError(CACHE_PATH)
 
@@ -359,117 +592,47 @@ bpy.ops.wm.usd_import(
 )
 imported_objects = [obj for obj in bpy.data.objects if obj not in before_objects]
 mesh_objects = [obj for obj in imported_objects if obj.type == "MESH"]
-if len(mesh_objects) != 1:
+if not mesh_objects:
+    raise RuntimeError(f"Expected imported animated meshes, got: {[obj.name for obj in imported_objects]}")
+soft_bodies = sorted(mesh_objects, key=lambda obj: obj.name)
+if len(MATERIAL_PRESETS) not in {1, len(soft_bodies)}:
     raise RuntimeError(
-        f"Expected exactly one imported animated mesh, got {len(mesh_objects)}: "
-        f"{[obj.name for obj in imported_objects]}"
+        f"Received {len(MATERIAL_PRESETS)} material presets for {len(soft_bodies)} bodies"
     )
-soft_body = mesh_objects[0]
-soft_body.name = "IsaacSoftBodyCache"
-soft_body.location += CACHE_TRANSLATION
+if len(MATERIAL_PRESETS) == 1:
+    material_presets = MATERIAL_PRESETS * len(soft_bodies)
+else:
+    material_presets = MATERIAL_PRESETS
 scene_name = CACHE_PATH.parent.name
 
-material = bpy.data.materials.new("TransparentSilicone_Cycles")
-material.use_nodes = True
-nodes = material.node_tree.nodes
-principled = next(node for node in nodes if node.type == "BSDF_PRINCIPLED")
-base_color = principled_input(principled, "Base Color")
-roughness = principled_input(principled, "Roughness")
-ior = principled_input(principled, "IOR")
-transmission = principled_input(principled, "Transmission Weight", "Transmission")
-coat = principled_input(principled, "Coat Weight", "Coat")
-if base_color:
-    base_color.default_value = (0.965, 0.985, 1.0, 1.0)
-if roughness:
-    roughness.default_value = 0.14
-if ior:
-    ior.default_value = 1.41
-if transmission:
-    transmission.default_value = 1.0
-if coat:
-    coat.default_value = 0.025
-
-# A closed silicone object is not uniformly alpha-transparent: longer paths
-# through the material absorb more light.  Cycles' volume absorption supplies
-# that thickness cue while the Principled surface handles refraction.
-material_output = next(node for node in nodes if node.type == "OUTPUT_MATERIAL")
-volume_absorption = nodes.new("ShaderNodeVolumeAbsorption")
-volume_absorption.name = "SiliconeThicknessAbsorption"
-volume_absorption.inputs["Color"].default_value = (0.82, 0.92, 1.0, 1.0)
-volume_absorption.inputs["Density"].default_value = 0.045
-volume_scatter = nodes.new("ShaderNodeVolumeScatter")
-volume_scatter.name = "SiliconeCloudiness"
-volume_scatter.inputs["Color"].default_value = (0.96, 0.985, 1.0, 1.0)
-volume_scatter.inputs["Density"].default_value = 0.9
-volume_scatter.inputs["Anisotropy"].default_value = 0.18
-volume_mix = nodes.new("ShaderNodeAddShader")
-volume_mix.name = "SiliconeVolume"
-material.node_tree.links.new(volume_absorption.outputs["Volume"], volume_mix.inputs[0])
-material.node_tree.links.new(volume_scatter.outputs["Volume"], volume_mix.inputs[1])
-material.node_tree.links.new(volume_mix.outputs[0], material_output.inputs["Volume"])
-
-# Cycles' straight shadow rays otherwise treat this highly transmissive surface
-# as nearly invisible, especially under an environment-only key.  For the two
-# scenes that need a reconstructed HDRI key light, use a partially transmitting
-# shadow-ray branch.  Camera, glossy and transmission rays still see the full
-# silicone shader above.
-shadow_transmission = None
-if scene_name in {"apartment", "mountain"}:
-    surface = material_output.inputs["Surface"]
-    original_surface = surface.links[0].from_socket
-    material.node_tree.links.remove(surface.links[0])
-    light_path = nodes.new("ShaderNodeLightPath")
-    light_path.name = "SiliconeShadowRaySelector"
-    transparent_shadow = nodes.new("ShaderNodeBsdfTransparent")
-    transparent_shadow.name = "SiliconeClearShadowRay"
-    transparent_shadow.inputs["Color"].default_value = (1.0, 1.0, 1.0, 1.0)
-    diffuse_shadow = nodes.new("ShaderNodeBsdfDiffuse")
-    diffuse_shadow.name = "SiliconeShadowBlocker"
-    diffuse_shadow.inputs["Color"].default_value = (0.8, 0.88, 0.95, 1.0)
-    shadow_value = float(os.environ.get("SILICONE_SHADOW_TRANSMISSION", "0.48"))
-    shadow_color = (shadow_value, shadow_value, shadow_value, 1.0)
-    shadow_attenuation = nodes.new("ShaderNodeMixShader")
-    shadow_attenuation.name = "SiliconePartialShadowBlocker"
-    shadow_attenuation.inputs[0].default_value = 1.0 - shadow_value
-    material.node_tree.links.new(transparent_shadow.outputs[0], shadow_attenuation.inputs[1])
-    material.node_tree.links.new(diffuse_shadow.outputs[0], shadow_attenuation.inputs[2])
-    shadow_mix = nodes.new("ShaderNodeMixShader")
-    shadow_mix.name = "SiliconeSurfaceWithShadowTransmission"
-    material.node_tree.links.new(original_surface, shadow_mix.inputs[1])
-    material.node_tree.links.new(shadow_attenuation.outputs[0], shadow_mix.inputs[2])
-    material.node_tree.links.new(light_path.outputs["Is Shadow Ray"], shadow_mix.inputs[0])
-    material.node_tree.links.new(shadow_mix.outputs[0], surface)
-    shadow_transmission = list(shadow_color)
-
-# Very low-amplitude broad noise breaks up perfectly smooth CG highlights
-# without making the silicone look frosted.
-noise = nodes.new("ShaderNodeTexNoise")
-noise.name = "SiliconeMicroVariation"
-noise.inputs["Scale"].default_value = 7.0
-noise.inputs["Detail"].default_value = 3.0
-noise.inputs["Roughness"].default_value = 0.55
-bump = nodes.new("ShaderNodeBump")
-bump.name = "SiliconeMicroBump"
-bump.inputs["Strength"].default_value = 0.018
-bump.inputs["Distance"].default_value = 0.0004
-material.node_tree.links.new(noise.outputs["Fac"], bump.inputs["Height"])
-normal = principled_input(principled, "Normal")
-if normal:
-    material.node_tree.links.new(bump.outputs["Normal"], normal)
-soft_body.data.materials.clear()
-soft_body.data.materials.append(material)
-
-for polygon in soft_body.data.polygons:
-    polygon.use_smooth = True
+body_materials = []
+for body_index, (soft_body, material_preset) in enumerate(zip(soft_bodies, material_presets)):
+    soft_body.name = f"IsaacSoftBodyCache_{body_index:02d}"
+    soft_body.location += CACHE_TRANSLATION
+    material, shadow_transmission = create_soft_body_material(material_preset, scene_name)
+    soft_body.data.materials.clear()
+    soft_body.data.materials.append(material)
+    for polygon in soft_body.data.polygons:
+        polygon.use_smooth = True
+    body_materials.append(
+        {
+            "object": soft_body.name,
+            "preset": material_preset,
+            "material": material.name,
+            "shadow_ray_transmission": shadow_transmission,
+        }
+    )
 
 scene = bpy.context.scene
 scene.render.engine = "CYCLES"
 shadow_receiver_material = configure_apartment_shadow_receiver_material()
 hdri_shadow_access = {"applied": False, "policy": "not_used_for_apartment"}
 world_lighting = configure_workspace_hdri(scene, scene_name)
+authored_light_tuning = tune_authored_scene_lights(scene, scene_name)
+authored_emissive_tuning = tune_authored_emissive_lights(scene_name)
 shadow_key = configure_scene_shadow_key(scene, scene_name)
-baked_shadow_overlay = configure_apartment_baked_shadow_overlay(scene, soft_body)
-apartment_authored_sun = configure_apartment_authored_sun(scene, before_objects, soft_body)
+baked_shadow_overlay = configure_apartment_baked_shadow_overlay(scene, soft_bodies)
+apartment_authored_sun = configure_apartment_authored_sun(scene, before_objects, soft_bodies)
 scene.cycles.samples = CYCLES_SAMPLES
 scene.cycles.use_denoising = True
 scene.cycles.device = "GPU"
@@ -511,11 +674,13 @@ if STOP_WHEN_OUT_OF_VIEW:
     for frame in range(scene.frame_start, requested_frame_end + 1):
         scene.frame_set(frame)
         depsgraph = bpy.context.evaluated_depsgraph_get()
-        evaluated = soft_body.evaluated_get(depsgraph)
-        camera_coordinates = [
-            world_to_camera_view(scene, camera, evaluated.matrix_world @ Vector(corner))
-            for corner in evaluated.bound_box
-        ]
+        camera_coordinates = []
+        for soft_body in soft_bodies:
+            evaluated = soft_body.evaluated_get(depsgraph)
+            camera_coordinates.extend(
+                world_to_camera_view(scene, camera, evaluated.matrix_world @ Vector(corner))
+                for corner in evaluated.bound_box
+            )
         if any(
             coordinate.z > 0.0
             and 0.0 <= coordinate.x <= 1.0
@@ -537,10 +702,14 @@ probe_bounds = []
 for frame in probe_frames:
     scene.frame_set(frame)
     depsgraph = bpy.context.evaluated_depsgraph_get()
-    evaluated = soft_body.evaluated_get(depsgraph)
-    evaluated_mesh = evaluated.to_mesh()
-    world_vertices = [evaluated.matrix_world @ vertex.co for vertex in evaluated_mesh.vertices]
-    evaluated.to_mesh_clear()
+    world_vertices = []
+    for soft_body in soft_bodies:
+        evaluated = soft_body.evaluated_get(depsgraph)
+        evaluated_mesh = evaluated.to_mesh()
+        world_vertices.extend(
+            evaluated.matrix_world @ vertex.co for vertex in evaluated_mesh.vertices
+        )
+        evaluated.to_mesh_clear()
     minimum = [min(vertex[axis] for vertex in world_vertices) for axis in range(3)]
     maximum = [max(vertex[axis] for vertex in world_vertices) for axis in range(3)]
     probe_bounds.append({"frame": frame, "minimum": minimum, "maximum": maximum})
@@ -558,8 +727,12 @@ if SELECTED_FRAMES:
         scene.frame_set(frame)
         if AUTO_CAMERA_ORBIT:
             depsgraph = bpy.context.evaluated_depsgraph_get()
-            evaluated = soft_body.evaluated_get(depsgraph)
-            corners = [evaluated.matrix_world @ Vector(corner) for corner in evaluated.bound_box]
+            corners = []
+            for soft_body in soft_bodies:
+                evaluated = soft_body.evaluated_get(depsgraph)
+                corners.extend(
+                    evaluated.matrix_world @ Vector(corner) for corner in evaluated.bound_box
+                )
             minimum = Vector(tuple(min(point[axis] for point in corners) for axis in range(3)))
             maximum = Vector(tuple(max(point[axis] for point in corners) for axis in range(3)))
             target = (minimum + maximum) * 0.5
@@ -602,10 +775,19 @@ report = {
     "source_blend": bpy.data.filepath,
     "cache_usd": str(CACHE_PATH),
     "cache_translation_blender": list(CACHE_TRANSLATION),
-    "imported_mesh": soft_body.name,
-    "vertex_count": len(soft_body.data.vertices),
-    "polygon_count": len(soft_body.data.polygons),
-    "modifiers": [modifier.type for modifier in soft_body.modifiers],
+    "imported_mesh": soft_bodies[0].name,
+    "imported_meshes": [soft_body.name for soft_body in soft_bodies],
+    "body_count": len(soft_bodies),
+    "material_preset": material_presets[0] if len(material_presets) == 1 else None,
+    "material_presets": material_presets,
+    "body_materials": body_materials,
+    "material_name": body_materials[0]["material"],
+    "vertex_count": sum(len(soft_body.data.vertices) for soft_body in soft_bodies),
+    "polygon_count": sum(len(soft_body.data.polygons) for soft_body in soft_bodies),
+    "modifiers": {
+        soft_body.name: [modifier.type for modifier in soft_body.modifiers]
+        for soft_body in soft_bodies
+    },
     "frame_start": scene.frame_start,
     "frame_end": scene.frame_end,
     "requested_frame_end": requested_frame_end,
@@ -618,12 +800,14 @@ report = {
     "cycles_device": device_mode,
     "persistent_data": scene.render.use_persistent_data,
     "world_lighting": world_lighting,
+    "authored_light_tuning": authored_light_tuning,
+    "authored_emissive_tuning": authored_emissive_tuning,
     "shadow_key": shadow_key,
     "baked_shadow_overlay": baked_shadow_overlay,
     "apartment_authored_sun": apartment_authored_sun,
     "shadow_receiver_material": shadow_receiver_material,
     "hdri_shadow_access": hdri_shadow_access,
-    "shadow_ray_transmission": shadow_transmission,
+    "shadow_ray_transmission": [row["shadow_ray_transmission"] for row in body_materials],
     "camera_eye_isaac": CAMERA_EYE,
     "camera_target_isaac": CAMERA_TARGET,
     "auto_camera_orbit": AUTO_CAMERA_ORBIT,

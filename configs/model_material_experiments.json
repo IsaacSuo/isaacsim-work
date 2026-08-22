@@ -1,0 +1,351 @@
+{
+  "physics_profiles": {
+    "silicone_soft": {
+      "expected_behavior": "soft",
+      "youngs_modulus": 45000.0,
+      "poissons_ratio": 0.47,
+      "linear_damping": 0.65,
+      "settling_damping": 3.0,
+      "restitution": 0.18,
+      "density": 1050.0
+    },
+    "silicone_firm": {
+      "expected_behavior": "soft",
+      "youngs_modulus": 500000.0,
+      "poissons_ratio": 0.45,
+      "linear_damping": 0.45,
+      "settling_damping": 2.0,
+      "restitution": 0.25,
+      "density": 1050.0
+    },
+    "hard_white": {
+      "expected_behavior": "hard",
+      "youngs_modulus": 900000000.0,
+      "poissons_ratio": 0.36,
+      "linear_damping": 0.2,
+      "settling_damping": 1.0,
+      "restitution": 0.22,
+      "density": 1250.0
+    },
+    "hard_metal": {
+      "expected_behavior": "hard",
+      "youngs_modulus": 900000000.0,
+      "poissons_ratio": 0.3,
+      "linear_damping": 0.12,
+      "settling_damping": 0.6,
+      "restitution": 0.12,
+      "density": 2700.0
+    }
+  },
+  "material_presets": {
+    "silicone_cloudy": {"allowed_behavior": "soft"},
+    "rough_white": {"allowed_behavior": "hard"},
+    "brushed_metal": {"allowed_behavior": "hard"}
+  },
+  "experiments": [
+    {
+      "id": "apartment_bird_white_hard",
+      "scene": "apartment",
+      "camera_distance_scale": 0.5,
+      "model": "bird.stl",
+      "model_height": 0.52,
+      "model_yaw": 18.0,
+      "collision_contact_offset": 0.05,
+      "collision_rest_offset": 0.03,
+      "physics_profile": "hard_white",
+      "material_preset": "rough_white"
+    },
+    {
+      "id": "banana_silicone_soft",
+      "scene": "hospital",
+      "model": "banana.stl",
+      "model_height": 0.5,
+      "model_yaw": 12.0,
+      "physics_profile": "silicone_soft",
+      "material_preset": "silicone_cloudy"
+    },
+    {
+      "id": "banana_silicone_firm",
+      "scene": "hospital",
+      "model": "banana.stl",
+      "model_height": 0.5,
+      "model_yaw": 12.0,
+      "physics_profile": "silicone_firm",
+      "material_preset": "silicone_cloudy"
+    },
+    {
+      "id": "chair_rough_white_hard",
+      "scene": "hospital",
+      "model": "chair.stl",
+      "model_height": 0.55,
+      "model_yaw": 25.0,
+      "physics_profile": "hard_white",
+      "material_preset": "rough_white"
+    },
+    {
+      "id": "bird_brushed_metal_hard",
+      "scene": "hospital",
+      "model": "bird.stl",
+      "model_height": 0.5,
+      "model_yaw": -18.0,
+      "physics_profile": "hard_metal",
+      "material_preset": "brushed_metal"
+    },
+    {
+      "id": "alley_carrot_silicone_soft",
+      "scene": "alley",
+      "camera_distance_scale": 0.5,
+      "model": "carrot.stl",
+      "model_height": 0.65,
+      "model_yaw": -24.0,
+      "collision_contact_offset": 0.09,
+      "collision_rest_offset": 0.07,
+      "physics_profile": "silicone_soft",
+      "material_preset": "silicone_cloudy"
+    },
+    {
+      "id": "bedroom_cat_silicone_firm",
+      "scene": "bedroom",
+      "camera_distance_scale": 0.5,
+      "model": "cat.stl",
+      "model_height": 0.48,
+      "model_yaw": 30.0,
+      "collision_contact_offset": 0.04,
+      "collision_rest_offset": 0.02,
+      "physics_profile": "silicone_firm",
+      "material_preset": "silicone_cloudy"
+    },
+    {
+      "id": "city_cap_metal_hard",
+      "scene": "city",
+      "camera_distance_scale": 0.5,
+      "model": "cap.stl",
+      "model_height": 0.65,
+      "model_yaw": -18.0,
+      "physics_profile": "hard_metal",
+      "material_preset": "brushed_metal"
+    },
+    {
+      "id": "classroom_banana_silicone_soft",
+      "scene": "classroom",
+      "camera_distance_scale": 0.5,
+      "model": "banana.stl",
+      "model_height": 0.62,
+      "model_yaw": 14.0,
+      "physics_profile": "silicone_soft",
+      "material_preset": "silicone_cloudy"
+    },
+    {
+      "id": "elevator_bird_white_hard",
+      "scene": "elevator",
+      "camera_distance_scale": 0.5,
+      "model": "bird.stl",
+      "model_height": 0.5,
+      "model_yaw": 20.0,
+      "collision_contact_offset": 0.12,
+      "collision_rest_offset": 0.1,
+      "physics_profile": "hard_white",
+      "material_preset": "rough_white"
+    },
+    {
+      "id": "factory_carrot_metal_hard",
+      "scene": "factory",
+      "camera_distance_scale": 0.5,
+      "model": "carrot.stl",
+      "model_height": 0.7,
+      "model_yaw": -42.0,
+      "collision_contact_offset": 0.12,
+      "collision_rest_offset": 0.1,
+      "physics_profile": "hard_metal",
+      "material_preset": "brushed_metal"
+    },
+    {
+      "id": "garage_chair_white_hard",
+      "scene": "garage",
+      "camera_distance_scale": 0.5,
+      "model": "chair.stl",
+      "model_height": 0.58,
+      "model_yaw": 35.0,
+      "physics_profile": "hard_white",
+      "material_preset": "rough_white"
+    },
+    {
+      "id": "graffiti_banana_silicone_firm",
+      "scene": "graffiti_warehouse",
+      "camera_distance_scale": 0.5,
+      "model": "banana.stl",
+      "model_height": 0.68,
+      "model_yaw": -8.0,
+      "collision_contact_offset": 0.07,
+      "collision_rest_offset": 0.05,
+      "physics_profile": "silicone_firm",
+      "material_preset": "silicone_cloudy"
+    },
+    {
+      "id": "mountain_cat_silicone_soft",
+      "scene": "mountain",
+      "camera_distance_scale": 0.6,
+      "model": "cat.stl",
+      "model_height": 0.72,
+      "model_yaw": -56.0,
+      "physics_profile": "silicone_soft",
+      "material_preset": "silicone_cloudy"
+    },
+    {
+      "id": "subway_bird_metal_hard",
+      "scene": "subway2",
+      "camera_distance_scale": 0.5,
+      "model": "bird.stl",
+      "model_height": 0.65,
+      "model_yaw": 12.0,
+      "collision_contact_offset": 0.12,
+      "collision_rest_offset": 0.1,
+      "physics_profile": "hard_metal",
+      "material_preset": "brushed_metal"
+    },
+    {
+      "id": "swamp_carrot_white_hard",
+      "scene": "swamp",
+      "camera_distance_scale": 0.5,
+      "model": "carrot.stl",
+      "model_height": 0.62,
+      "model_yaw": 38.0,
+      "physics_profile": "hard_white",
+      "material_preset": "rough_white"
+    },
+    {
+      "id": "warehouse_cat_silicone_soft",
+      "scene": "warehouse",
+      "camera_distance_scale": 0.5,
+      "model": "cat.stl",
+      "model_height": 0.68,
+      "model_yaw": -30.0,
+      "collision_contact_offset": 0.14,
+      "collision_rest_offset": 0.12,
+      "physics_profile": "silicone_soft",
+      "material_preset": "silicone_cloudy"
+    },
+    {
+      "id": "alley_bird_metal_hard",
+      "scene": "alley",
+      "camera_distance_scale": 0.5,
+      "model": "bird.stl",
+      "model_height": 0.6,
+      "model_yaw": 18.0,
+      "physics_profile": "hard_metal",
+      "material_preset": "brushed_metal"
+    },
+    {
+      "id": "bedroom_chair_white_hard",
+      "scene": "bedroom",
+      "camera_distance_scale": 0.5,
+      "model": "chair.stl",
+      "model_height": 0.5,
+      "model_yaw": -24.0,
+      "physics_profile": "hard_white",
+      "material_preset": "rough_white"
+    },
+    {
+      "id": "city_banana_silicone_firm",
+      "scene": "city",
+      "camera_distance_scale": 0.5,
+      "model": "banana.stl",
+      "model_height": 0.62,
+      "model_yaw": 32.0,
+      "collision_contact_offset": 0.07,
+      "collision_rest_offset": 0.05,
+      "physics_profile": "silicone_firm",
+      "material_preset": "silicone_cloudy"
+    },
+    {
+      "id": "classroom_carrot_white_hard",
+      "scene": "classroom",
+      "camera_distance_scale": 0.5,
+      "model": "carrot.stl",
+      "model_height": 0.58,
+      "model_yaw": -35.0,
+      "physics_profile": "hard_white",
+      "material_preset": "rough_white"
+    },
+    {
+      "id": "elevator_cat_silicone_soft",
+      "scene": "elevator",
+      "camera_distance_scale": 0.5,
+      "model": "cat.stl",
+      "model_height": 0.56,
+      "model_yaw": -18.0,
+      "physics_profile": "silicone_soft",
+      "material_preset": "silicone_cloudy"
+    },
+    {
+      "id": "factory_banana_silicone_firm",
+      "scene": "factory",
+      "camera_distance_scale": 0.5,
+      "model": "banana.stl",
+      "model_height": 0.66,
+      "model_yaw": 26.0,
+      "physics_profile": "silicone_firm",
+      "material_preset": "silicone_cloudy"
+    },
+    {
+      "id": "garage_carrot_silicone_soft",
+      "scene": "garage",
+      "camera_distance_scale": 0.5,
+      "model": "carrot.stl",
+      "model_height": 0.64,
+      "model_yaw": -12.0,
+      "physics_profile": "silicone_soft",
+      "material_preset": "silicone_cloudy"
+    },
+    {
+      "id": "graffiti_bird_metal_hard",
+      "scene": "graffiti_warehouse",
+      "camera_distance_scale": 0.5,
+      "model": "bird.stl",
+      "model_height": 0.62,
+      "model_yaw": 42.0,
+      "physics_profile": "hard_metal",
+      "material_preset": "brushed_metal"
+    },
+    {
+      "id": "mountain_elephant_metal_hard",
+      "scene": "mountain",
+      "camera_distance_scale": 0.6,
+      "model": "elephant.stl",
+      "model_height": 0.75,
+      "model_yaw": 28.0,
+      "physics_profile": "hard_metal",
+      "material_preset": "brushed_metal"
+    },
+    {
+      "id": "subway_cat_silicone_firm",
+      "scene": "subway2",
+      "camera_distance_scale": 0.5,
+      "model": "cat.stl",
+      "model_height": 0.62,
+      "model_yaw": -36.0,
+      "physics_profile": "silicone_firm",
+      "material_preset": "silicone_cloudy"
+    },
+    {
+      "id": "swamp_banana_silicone_soft",
+      "scene": "swamp",
+      "camera_distance_scale": 0.5,
+      "model": "banana.stl",
+      "model_height": 0.6,
+      "model_yaw": 16.0,
+      "physics_profile": "silicone_soft",
+      "material_preset": "silicone_cloudy"
+    },
+    {
+      "id": "warehouse_chair_white_hard",
+      "scene": "warehouse",
+      "camera_distance_scale": 0.5,
+      "model": "chair.stl",
+      "model_height": 0.6,
+      "model_yaw": 38.0,
+      "physics_profile": "hard_white",
+      "material_preset": "rough_white"
+    }
+  ]
+}

@@ -20,7 +20,7 @@ class RepositoryLayoutTests(unittest.TestCase):
             with self.subTest(path=relative_path):
                 self.assertTrue((ROOT / relative_path).is_file())
 
-    def test_camera_scenes_have_physics_config_or_explicit_exception(self):
+    def test_all_camera_scenes_have_physics_config(self):
         scenes = json.loads(
             (ROOT / "configs/scene_experiments.json").read_text(encoding="utf-8")
         )
@@ -28,13 +28,40 @@ class RepositoryLayoutTests(unittest.TestCase):
             (ROOT / "configs/blender_camera_selections.json").read_text(encoding="utf-8")
         )
 
-        self.assertEqual(set(cameras) - set(scenes), {"apartment"})
+        self.assertEqual(set(cameras) - set(scenes), set())
 
     def test_omniglass_checks_are_not_root_entrypoints(self):
         self.assertEqual(list(ROOT.glob("render_omni*.py")), [])
         self.assertTrue(
             (ROOT / "experiments/omniglass/render_omniglass_preview.py").is_file()
         )
+
+    def test_multi_object_config_covers_all_scenes_with_mixed_materials(self):
+        scenes = json.loads(
+            (ROOT / "configs/scene_experiments.json").read_text(encoding="utf-8")
+        )
+        config = json.loads(
+            (ROOT / "configs/multi_object_scene_experiments.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        experiments = config["experiments"]
+
+        self.assertIsInstance(config.get("seed"), int)
+        self.assertEqual(len(experiments), 14)
+        self.assertEqual({row["scene"] for row in experiments}, set(scenes))
+        self.assertEqual(len({row["scene"] for row in experiments}), len(experiments))
+        for experiment in experiments:
+            with self.subTest(scene=experiment["scene"]):
+                bodies = experiment["bodies"]
+                self.assertGreaterEqual(len(bodies), 3)
+                self.assertEqual(len({body["model"] for body in bodies}), len(bodies))
+                self.assertGreaterEqual(
+                    len({body["material_preset"] for body in bodies}), 3
+                )
+                self.assertEqual(
+                    sorted(body["drop_offset"] for body in bodies), [0.0, 0.72, 1.44]
+                )
 
 
 if __name__ == "__main__":

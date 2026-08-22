@@ -11,6 +11,11 @@ from pathlib import Path
 
 os.environ.setdefault("OMNI_KIT_ACCEPT_EULA", "YES")
 
+ROOT = Path(__file__).resolve().parent
+SCENES_ROOT = Path(os.environ.get("SCENES_ROOT", ROOT / "scenes")).expanduser()
+if not SCENES_ROOT.is_dir() and os.name == "nt" and Path(r"Y:\scenes").is_dir():
+    SCENES_ROOT = Path(r"Y:\scenes")
+
 
 def parse_args():
     parser = argparse.ArgumentParser(description=__doc__)
@@ -54,24 +59,77 @@ def parse_args():
     )
     parser.add_argument(
         "--output",
-        default=r"Y:\isaacsim_work\output\soft_body_elephant_hero",
+        default=str(ROOT / "output" / "soft_body_elephant_hero"),
     )
     parser.add_argument("--ball-radius", type=float, default=0.65)
     parser.add_argument(
         "--model",
-        default=r"Y:\isaacsim_work\assets\soft_body_elephant.stl",
+        default=str(ROOT / "assets" / "soft_body_elephant.stl"),
         help="Closed binary STL used as the deformable visual and cooking mesh.",
     )
     parser.add_argument("--model-height", type=float, default=1.45)
+    parser.add_argument(
+        "--model-scale-mode",
+        choices=("y_extent", "max_extent"),
+        default="y_extent",
+        help="Scale model-height from authored Y extent or from the largest object extent.",
+    )
     parser.add_argument("--model-yaw", type=float, default=-56.0)
+    parser.add_argument(
+        "--secondary-body",
+        action="append",
+        nargs=6,
+        default=[],
+        metavar=("MODEL", "HEIGHT", "YAW", "SPAWN_X", "DROP_HEIGHT", "SPAWN_Z"),
+        help=(
+            "Add another independently simulated deformable body. May be repeated; "
+            "secondary bodies share the primary physics material and scale mode."
+        ),
+    )
+    parser.add_argument(
+        "--body-config",
+        default=None,
+        help=(
+            "Optional JSON file containing a bodies array. Each body may define model, "
+            "model_height, model_yaw, spawn_x, drop_height, spawn_z, density, "
+            "youngs_modulus, poissons_ratio, linear_damping, settling_damping, "
+            "and restitution."
+        ),
+    )
     parser.add_argument("--drop-height", type=float, default=3.0)
     parser.add_argument("--youngs-modulus", type=float, default=110000.0)
     parser.add_argument("--linear-damping", type=float, default=1.35)
+    parser.add_argument("--settling-damping", type=float, default=4.0)
+    parser.add_argument("--restitution", type=float, default=0.15)
     parser.add_argument("--poissons-ratio", type=float, default=0.45)
     parser.add_argument("--density", type=float, default=1050.0)
+    parser.add_argument(
+        "--expected-behavior",
+        choices=("soft", "hard"),
+        default="soft",
+        help="Select validation semantics; hard presets need finite contact motion but not visible squash.",
+    )
+    parser.add_argument(
+        "--validation-profile",
+        choices=("hero", "generic"),
+        default="hero",
+        help="Hero requires visible squash/rebound; generic accepts arbitrary model shapes after finite contact.",
+    )
     parser.add_argument("--deformable-resolution", type=int, default=24)
+    parser.add_argument("--collision-contact-offset", type=float, default=0.03)
+    parser.add_argument("--collision-rest-offset", type=float, default=0.01)
+    parser.add_argument(
+        "--require-interbody-contact",
+        action="store_true",
+        help="Fail validation unless at least one pair of configured bodies reaches contact proximity.",
+    )
     parser.add_argument("--self-collision-filter-distance", type=float, default=0.05)
     parser.add_argument("--environment-usd", default=None, help="Optional static environment USD added as a sublayer.")
+    parser.add_argument(
+        "--prebuilt-collision-usd",
+        default=None,
+        help="Optional reusable exact collider sublayer, avoiding repeated environment mesh cropping.",
+    )
     parser.add_argument(
         "--environment-ground-only",
         action="store_true",
@@ -170,7 +228,7 @@ def parse_args():
     )
     parser.add_argument(
         "--hdri-texture",
-        default=r"Y:\scenes\HDRI\bambanani_sunset_8k.exr",
+        default=str(SCENES_ROOT / "HDRI" / "bambanani_sunset_8k.exr"),
         help="Fallback lat-long HDRI used when the imported scene has no usable authored HDRI.",
     )
     parser.add_argument(
@@ -461,7 +519,7 @@ def create_icosphere(radius, subdivisions=3):
     return points, triangles
 
 
-def load_binary_stl(path, model_height):
+def load_binary_stl(path, model_height, model_yaw=None, scale_mode=None):
     with open(path, "rb") as stream:
         stream.read(80)
         triangle_count = int.from_bytes(stream.read(4), "little")
@@ -491,7 +549,7 @@ def load_binary_stl(path, model_height):
     # The asset is authored Y-up. Rotate it about Y so its elephant profile and
     # trunk read clearly from the fixed three-quarter hero camera.
     oriented = vertices.astype(np.float64)
-    yaw = math.radians(ARGS.model_yaw)
+    yaw = math.radians(ARGS.model_yaw if model_yaw is None else float(model_yaw))
     cos_yaw, sin_yaw = math.cos(yaw), math.sin(yaw)
     x = oriented[:, 0].copy()
     z = oriented[:, 2].copy()
@@ -500,7 +558,9 @@ def load_binary_stl(path, model_height):
     extents = oriented.max(axis=0) - oriented.min(axis=0)
     if not np.isfinite(oriented).all() or extents[1] <= 0.0:
         raise ValueError(f"Invalid STL geometry: {path}")
-    oriented *= float(model_height) / float(extents[1])
+    selected_scale_mode = ARGS.model_scale_mode if scale_mode is None else scale_mode
+    scale_extent = extents[1] if selected_scale_mode == "y_extent" else float(np.max(extents))
+    oriented *= float(model_height) / float(scale_extent)
     oriented[:, 0] -= 0.5 * (oriented[:, 0].min() + oriented[:, 0].max())
     oriented[:, 2] -= 0.5 * (oriented[:, 2].min() + oriented[:, 2].max())
     oriented[:, 1] -= oriented[:, 1].min()
@@ -1275,7 +1335,7 @@ def current_snapshot(stage, visual_mesh, root_prim, frame):
     }
 
 
-def export_blender_animation_usd(visual_mesh, snapshots, output_path, frames_per_second=60.0):
+def export_blender_animation_usd(visual_meshes, snapshot_groups, output_path, frames_per_second=60.0):
     """Write visible surface samples in Blender's Z-up world coordinates.
 
     Isaac scene coordinates are Y-up.  The rigid rotation
@@ -1289,12 +1349,25 @@ def export_blender_animation_usd(visual_mesh, snapshots, output_path, frames_per
     if output_path.exists():
         output_path.unlink()
 
-    source_counts = visual_mesh.GetFaceVertexCountsAttr().Get() or []
-    source_indices = visual_mesh.GetFaceVertexIndicesAttr().Get() or []
-    if not source_counts or not source_indices:
-        raise RuntimeError("Visible soft-body mesh has no exportable topology")
-    if not snapshots:
+    if not visual_meshes or len(visual_meshes) != len(snapshot_groups):
+        raise RuntimeError("Blender export requires one snapshot group per visible body")
+    source_topologies = []
+    body_vertex_counts = []
+    for visual_mesh in visual_meshes:
+        body_counts = visual_mesh.GetFaceVertexCountsAttr().Get() or []
+        body_indices = visual_mesh.GetFaceVertexIndicesAttr().Get() or []
+        body_points = visual_mesh.GetPointsAttr().Get() or []
+        if not body_counts or not body_indices or not body_points:
+            raise RuntimeError("Visible soft-body mesh has no exportable topology")
+        source_topologies.append(
+            ([int(value) for value in body_counts], [int(value) for value in body_indices])
+        )
+        body_vertex_counts.append(len(body_points))
+    if not snapshot_groups or not snapshot_groups[0]:
         raise RuntimeError("No simulated snapshots were provided for Blender export")
+    frame_count = len(snapshot_groups[0])
+    if any(len(group) != frame_count for group in snapshot_groups):
+        raise RuntimeError("Soft-body snapshot groups have inconsistent frame counts")
 
     cache_stage = Usd.Stage.CreateNew(str(output_path))
     UsdGeom.SetStageUpAxis(cache_stage, UsdGeom.Tokens.z)
@@ -1302,49 +1375,59 @@ def export_blender_animation_usd(visual_mesh, snapshots, output_path, frames_per
     cache_stage.SetTimeCodesPerSecond(float(frames_per_second))
     cache_stage.SetFramesPerSecond(float(frames_per_second))
     cache_stage.SetStartTimeCode(1.0)
-    cache_stage.SetEndTimeCode(float(len(snapshots)))
+    cache_stage.SetEndTimeCode(float(frame_count))
 
     root = UsdGeom.Xform.Define(cache_stage, "/SoftBodyCache")
     cache_stage.SetDefaultPrim(root.GetPrim())
-    mesh = UsdGeom.Mesh.Define(cache_stage, "/SoftBodyCache/SoftBody")
-    mesh.CreateFaceVertexCountsAttr([int(value) for value in source_counts])
-    mesh.CreateFaceVertexIndicesAttr([int(value) for value in source_indices])
-    mesh.CreateSubdivisionSchemeAttr().Set(UsdGeom.Tokens.none)
-    mesh.CreateOrientationAttr().Set(UsdGeom.Tokens.rightHanded)
-    mesh.CreateDisplayColorPrimvar(UsdGeom.Tokens.constant).Set([Gf.Vec3f(0.34, 0.07, 0.04)])
+    meshes = []
+    for body_index, (body_counts, body_indices) in enumerate(source_topologies):
+        mesh_name = "SoftBody" if len(visual_meshes) == 1 else f"Body_{body_index:02d}"
+        mesh = UsdGeom.Mesh.Define(cache_stage, f"/SoftBodyCache/{mesh_name}")
+        mesh.CreateFaceVertexCountsAttr(body_counts)
+        mesh.CreateFaceVertexIndicesAttr(body_indices)
+        mesh.CreateSubdivisionSchemeAttr().Set(UsdGeom.Tokens.none)
+        mesh.CreateOrientationAttr().Set(UsdGeom.Tokens.rightHanded)
+        mesh.CreateDisplayColorPrimvar(UsdGeom.Tokens.constant).Set([Gf.Vec3f(0.34, 0.07, 0.04)])
+        meshes.append(mesh)
 
-    expected_count = None
-    for blender_frame, snapshot in enumerate(snapshots, start=1):
-        isaac_points = np.asarray(snapshot["world_points"], dtype=np.float32)
-        blender_points = np.column_stack(
-            (isaac_points[:, 0], -isaac_points[:, 2], isaac_points[:, 1])
-        ).astype(np.float32, copy=False)
-        if expected_count is None:
-            expected_count = len(blender_points)
-        elif len(blender_points) != expected_count:
-            raise RuntimeError(
-                f"Visible topology changed at frame {blender_frame}: "
-                f"{len(blender_points)} != {expected_count}"
+    expected_counts = [None] * len(meshes)
+    for blender_frame, frame_snapshots in enumerate(zip(*snapshot_groups), start=1):
+        for body_index, (mesh, snapshot) in enumerate(zip(meshes, frame_snapshots)):
+            isaac_points = np.asarray(snapshot["world_points"], dtype=np.float32)
+            blender_points = np.column_stack(
+                (isaac_points[:, 0], -isaac_points[:, 2], isaac_points[:, 1])
+            ).astype(np.float32, copy=False)
+            if expected_counts[body_index] is None:
+                expected_counts[body_index] = len(blender_points)
+            elif len(blender_points) != expected_counts[body_index]:
+                raise RuntimeError(
+                    f"Visible topology changed for body {body_index} at frame {blender_frame}: "
+                    f"{len(blender_points)} != {expected_counts[body_index]}"
+                )
+            if not np.isfinite(blender_points).all():
+                raise RuntimeError(
+                    f"Non-finite Blender cache coordinates for body {body_index} "
+                    f"at frame {blender_frame}"
+                )
+            time_code = Usd.TimeCode(float(blender_frame))
+            mesh.GetPointsAttr().Set(Vt.Vec3fArray.FromNumpy(blender_points), time_code)
+            minimum = blender_points.min(axis=0)
+            maximum = blender_points.max(axis=0)
+            mesh.GetExtentAttr().Set(
+                [Gf.Vec3f(*map(float, minimum)), Gf.Vec3f(*map(float, maximum))], time_code
             )
-        if not np.isfinite(blender_points).all():
-            raise RuntimeError(f"Non-finite Blender cache coordinates at frame {blender_frame}")
-        time_code = Usd.TimeCode(float(blender_frame))
-        mesh.GetPointsAttr().Set(Vt.Vec3fArray.FromNumpy(blender_points), time_code)
-        minimum = blender_points.min(axis=0)
-        maximum = blender_points.max(axis=0)
-        mesh.GetExtentAttr().Set(
-            [Gf.Vec3f(*map(float, minimum)), Gf.Vec3f(*map(float, maximum))], time_code
-        )
 
     cache_stage.GetRootLayer().Save()
     if not output_path.is_file() or output_path.stat().st_size <= 0:
         raise RuntimeError(f"Blender animation USD was not written: {output_path}")
     return {
         "path": str(output_path),
-        "frame_count": len(snapshots),
+        "frame_count": frame_count,
         "frames_per_second": float(frames_per_second),
-        "vertex_count": int(expected_count),
-        "face_count": len(source_counts),
+        "vertex_count": int(sum(expected_counts)),
+        "face_count": int(sum(len(topology[0]) for topology in source_topologies)),
+        "body_count": len(visual_meshes),
+        "body_vertex_counts": body_vertex_counts,
         "up_axis": "Z",
         "meters_per_unit": 1.0,
         "coordinate_conversion": "Isaac (x,y,z) -> Blender (x,-z,y)",
@@ -1363,6 +1446,40 @@ def snapshot_summary(snapshot):
         "horizontal_radius": round(float(snapshot["horizontal_radius"]), 6),
         "finite": bool(snapshot["finite"]),
     }
+
+
+def aabb_separation(first, second):
+    gaps = np.maximum(
+        np.maximum(first["minimum"] - second["maximum"], second["minimum"] - first["maximum"]),
+        0.0,
+    )
+    return float(np.linalg.norm(gaps))
+
+
+def summarize_interbody_contacts(snapshot_groups, threshold=0.04):
+    pairs = []
+    for first_index in range(len(snapshot_groups)):
+        for second_index in range(first_index + 1, len(snapshot_groups)):
+            separations = [
+                aabb_separation(first, second)
+                for first, second in zip(
+                    snapshot_groups[first_index], snapshot_groups[second_index]
+                )
+            ]
+            contact_indices = [
+                index for index, separation in enumerate(separations) if separation <= threshold
+            ]
+            pairs.append(
+                {
+                    "bodies": [first_index, second_index],
+                    "initial_separation": separations[0],
+                    "minimum_separation": min(separations),
+                    "contact_threshold": threshold,
+                    "contact_detected": bool(contact_indices),
+                    "first_contact_frame": contact_indices[0] - 1 if contact_indices else None,
+                }
+            )
+    return pairs
 
 
 def capture_current_viewport(viewport, file_path):
@@ -1387,12 +1504,12 @@ def capture_current_viewport(viewport, file_path):
     raise RuntimeError(f"Captured file did not become visible: {file_path}")
 
 
-def choose_keyframes(snapshots, initial_height, support_top_y):
+def choose_keyframes(snapshots, initial_height, support_top_y, contact_clearance=0.035):
     centers_y = np.asarray([snapshot["center"][1] for snapshot in snapshots])
     bottoms = np.asarray([snapshot["minimum"][1] for snapshot in snapshots])
     heights = np.asarray([snapshot["height"] for snapshot in snapshots])
 
-    contact_candidates = np.flatnonzero(bottoms <= support_top_y + 0.035)
+    contact_candidates = np.flatnonzero(bottoms <= support_top_y + contact_clearance)
     if len(contact_candidates) == 0:
         contact_index = int(np.argmin(bottoms))
         contact_detected = False
@@ -1493,6 +1610,177 @@ def configure_environment_dome(stage):
         f"intensity={ARGS.hdri_intensity} rotation_x={ARGS.hdri_rotation_x_degrees}"
     )
 
+
+def create_deformable_body(stage, index, spec, visual_material, physics_material_path):
+    if index == 0:
+        root_path = BALL_PATH
+        visual_path = VISUAL_PATH
+        sim_path = SIM_PATH
+        collision_path = COLLISION_PATH
+    else:
+        root_path = Sdf.Path(f"/World/SoftBody_{index:02d}")
+        visual_path = root_path.AppendChild("Visual")
+        sim_path = root_path.AppendChild("SimulationMesh")
+        collision_path = root_path.AppendChild("CollisionMesh")
+
+    model_path = Path(spec["model"])
+    if not model_path.is_file():
+        raise FileNotFoundError(f"Deformable model not found: {model_path}")
+    points, triangles = load_binary_stl(
+        model_path,
+        spec["model_height"],
+        model_yaw=spec["model_yaw"],
+        scale_mode=ARGS.model_scale_mode,
+    )
+    root = UsdGeom.Xform.Define(stage, root_path)
+    root.AddTranslateOp().Set(Gf.Vec3d(*spec["spawn"]))
+    visual = UsdGeom.Mesh.Define(stage, visual_path)
+    visual.CreatePointsAttr([Gf.Vec3f(*map(float, point)) for point in points])
+    visual.CreateFaceVertexCountsAttr([3] * len(triangles))
+    visual.CreateFaceVertexIndicesAttr(triangles.reshape(-1).tolist())
+    visual.CreateSubdivisionSchemeAttr().Set(UsdGeom.Tokens.none)
+    bind_visual_material(visual.GetPrim(), visual_material)
+
+    hierarchy_created = deformableUtils.create_auto_volume_deformable_hierarchy(
+        stage,
+        root_path,
+        sim_path,
+        collision_path,
+        visual_path,
+        True,
+        False,
+        True,
+    )
+    if not hierarchy_created:
+        raise RuntimeError(f"create_auto_volume_deformable_hierarchy returned False for body {index}")
+    root_prim = root.GetPrim()
+    root_prim.GetAttribute("physxDeformableBody:resolution").Set(ARGS.deformable_resolution)
+    if not root_prim.ApplyAPI("PhysxBaseDeformableBodyAPI"):
+        raise RuntimeError(f"Failed to apply PhysxBaseDeformableBodyAPI to body {index}")
+    root_prim.GetAttribute("physxDeformableBody:linearDamping").Set(float(spec["linear_damping"]))
+    root_prim.GetAttribute("physxDeformableBody:settlingDamping").Set(
+        float(spec["settling_damping"])
+    )
+    root_prim.GetAttribute("physxDeformableBody:solverPositionIterationCount").Set(24)
+    root_prim.GetAttribute("physxDeformableBody:enableSpeculativeCCD").Set(True)
+    root_prim.GetAttribute("physxDeformableBody:selfCollision").Set(False)
+    root_prim.GetAttribute("physxDeformableBody:selfCollisionFilterDistance").Set(
+        ARGS.self_collision_filter_distance
+    )
+
+    collision_prim = stage.GetPrimAtPath(collision_path)
+    if collision_prim and collision_prim.IsValid():
+        collision_prim.ApplyAPI(PhysxSchema.PhysxCollisionAPI)
+        physx_collision = PhysxSchema.PhysxCollisionAPI(collision_prim)
+        collision_contact_offset = float(
+            spec.get("collision_contact_offset", ARGS.collision_contact_offset)
+        )
+        collision_rest_offset = float(
+            spec.get("collision_rest_offset", ARGS.collision_rest_offset)
+        )
+        if collision_contact_offset < collision_rest_offset:
+            raise ValueError("collision contact offset must be >= collision rest offset")
+        physx_collision.CreateContactOffsetAttr().Set(collision_contact_offset)
+        physx_collision.CreateRestOffsetAttr().Set(collision_rest_offset)
+    else:
+        collision_contact_offset = float(
+            spec.get("collision_contact_offset", ARGS.collision_contact_offset)
+        )
+        collision_rest_offset = float(
+            spec.get("collision_rest_offset", ARGS.collision_rest_offset)
+        )
+    physicsUtils.add_physics_material_to_prim(stage, root_prim, physics_material_path)
+    return {
+        "index": index,
+        "model": str(model_path),
+        "model_height": float(spec["model_height"]),
+        "model_yaw": float(spec["model_yaw"]),
+        "spawn": tuple(float(value) for value in spec["spawn"]),
+        "root": root_prim,
+        "visual": visual,
+        "sim_path": sim_path,
+        "collision_path": collision_path,
+        "vertex_count": len(points),
+        "triangle_count": len(triangles),
+        "collision_contact_offset": collision_contact_offset,
+        "collision_rest_offset": collision_rest_offset,
+        "physics_kind": "deformable",
+        "physics_profile": spec.get("physics_profile"),
+        "material_preset": spec.get("material_preset"),
+    }
+
+def create_rigid_body(stage, index, spec, visual_material, physics_material_path):
+    """Create a dynamic rigid body while keeping the authored STL surface intact."""
+    if index == 0:
+        root_path = BALL_PATH
+        visual_path = VISUAL_PATH
+    else:
+        root_path = Sdf.Path(f"/World/RigidBody_{index:02d}")
+        visual_path = root_path.AppendChild("Visual")
+
+    model_path = Path(spec["model"])
+    if not model_path.is_file():
+        raise FileNotFoundError(f"Rigid model not found: {model_path}")
+    points, triangles = load_binary_stl(
+        model_path,
+        spec["model_height"],
+        model_yaw=spec["model_yaw"],
+        scale_mode=ARGS.model_scale_mode,
+    )
+
+    root = UsdGeom.Xform.Define(stage, root_path)
+    root.AddTranslateOp().Set(Gf.Vec3d(*spec["spawn"]))
+    visual = UsdGeom.Mesh.Define(stage, visual_path)
+    visual.CreatePointsAttr([Gf.Vec3f(*map(float, point)) for point in points])
+    visual.CreateFaceVertexCountsAttr([3] * len(triangles))
+    visual.CreateFaceVertexIndicesAttr(triangles.reshape(-1).tolist())
+    visual.CreateSubdivisionSchemeAttr().Set(UsdGeom.Tokens.none)
+    bind_visual_material(visual.GetPrim(), visual_material)
+
+    root_prim = root.GetPrim()
+    UsdPhysics.RigidBodyAPI.Apply(root_prim).CreateRigidBodyEnabledAttr().Set(True)
+    UsdPhysics.MassAPI.Apply(root_prim).CreateDensityAttr().Set(float(spec["density"]))
+
+    collision_prim = visual.GetPrim()
+    UsdPhysics.CollisionAPI.Apply(collision_prim).CreateCollisionEnabledAttr().Set(True)
+    # Dynamic triangle meshes are unsupported. Convex decomposition retains
+    # concavities much better than a single convex hull while remaining rigid.
+    UsdPhysics.MeshCollisionAPI.Apply(collision_prim).CreateApproximationAttr().Set(
+        "convexDecomposition"
+    )
+    physx_collision = PhysxSchema.PhysxCollisionAPI.Apply(collision_prim)
+    collision_contact_offset = float(
+        spec.get("collision_contact_offset", ARGS.collision_contact_offset)
+    )
+    collision_rest_offset = float(
+        spec.get("collision_rest_offset", ARGS.collision_rest_offset)
+    )
+    if collision_contact_offset < collision_rest_offset:
+        raise ValueError("collision contact offset must be >= collision rest offset")
+    physx_collision.CreateContactOffsetAttr().Set(collision_contact_offset)
+    physx_collision.CreateRestOffsetAttr().Set(collision_rest_offset)
+    physicsUtils.add_physics_material_to_prim(stage, collision_prim, physics_material_path)
+
+    return {
+        "index": index,
+        "model": str(model_path),
+        "model_height": float(spec["model_height"]),
+        "model_yaw": float(spec["model_yaw"]),
+        "spawn": tuple(float(value) for value in spec["spawn"]),
+        "root": root_prim,
+        "visual": visual,
+        "sim_path": None,
+        "collision_path": visual_path,
+        "vertex_count": len(points),
+        "triangle_count": len(triangles),
+        "collision_contact_offset": collision_contact_offset,
+        "collision_rest_offset": collision_rest_offset,
+        "physics_kind": "rigid",
+        "physics_profile": spec.get("physics_profile"),
+        "material_preset": spec.get("material_preset"),
+    }
+
+
 def build_scene():
     context = omni.usd.get_context()
     context.new_stage()
@@ -1503,6 +1791,12 @@ def build_scene():
             raise FileNotFoundError(f"Environment USD does not exist: {environment_path}")
         stage.GetRootLayer().subLayerPaths.append(environment_path.as_posix())
         print(f"[environment] sublayer={environment_path}")
+    if ARGS.prebuilt_collision_usd:
+        collision_path = Path(ARGS.prebuilt_collision_usd).resolve()
+        if not collision_path.is_file():
+            raise FileNotFoundError(f"Prebuilt collision USD does not exist: {collision_path}")
+        stage.GetRootLayer().subLayerPaths.append(collision_path.as_posix())
+        print(f"[environment] prebuilt-collision={collision_path}")
     UsdGeom.SetStageMetersPerUnit(stage, 1.0)
     UsdGeom.SetStageUpAxis(stage, UsdGeom.Tokens.y)
     UsdPhysics.SetStageKilogramsPerUnit(stage, 1.0)
@@ -1512,7 +1806,7 @@ def build_scene():
 
     if ARGS.environment_usd and ARGS.environment_ground_only:
         disabled_colliders = 0
-        retained_colliders = 0
+        retained_colliders = 1 if ARGS.prebuilt_collision_usd else 0
         retained_paths = set(ARGS.environment_ground_prim)
         sanitize_paths = set(ARGS.sanitize_ground_prim)
         sanitize_sources = []
@@ -1612,7 +1906,7 @@ def build_scene():
         camera.CreateFStopAttr(0.0)
         set_look_at(camera.GetPrim(), (0.0, 0.0, 0.0), (0.0, 0.0, 1.0))
         print("[panorama] static environment mode: no PhysicsScene, deformable, or simulation")
-        return stage, None, None, camera, 0, 0
+        return stage, [], camera
 
     scene = UsdPhysics.Scene.Define(stage, "/World/PhysicsScene")
     scene.CreateGravityDirectionAttr().Set(Gf.Vec3f(0.0, -1.0, 0.0))
@@ -1660,64 +1954,86 @@ def build_scene():
         UsdGeom.Xformable(ring).AddTranslateOp().Set(Gf.Vec3d(-1.35, 2.45, -2.55))
         bind_visual_material(ring.GetPrim(), ring_material)
 
-    ball_root = UsdGeom.Xform.Define(stage, BALL_PATH)
-    ball_root.AddTranslateOp().Set(Gf.Vec3d(ARGS.spawn_x, ARGS.drop_height, ARGS.spawn_z))
-    model_path = Path(ARGS.model)
-    if not model_path.is_file():
-        raise FileNotFoundError(f"Deformable model not found: {model_path}")
-    ball_points, ball_triangles = load_binary_stl(model_path, ARGS.model_height)
-    visual = UsdGeom.Mesh.Define(stage, VISUAL_PATH)
-    visual.CreatePointsAttr([Gf.Vec3f(*map(float, point)) for point in ball_points])
-    visual.CreateFaceVertexCountsAttr([3] * len(ball_triangles))
-    visual.CreateFaceVertexIndicesAttr(ball_triangles.reshape(-1).tolist())
-    visual.CreateSubdivisionSchemeAttr().Set(UsdGeom.Tokens.none)
-    bind_visual_material(visual.GetPrim(), ball_material)
-
-    hierarchy_created = deformableUtils.create_auto_volume_deformable_hierarchy(
-        stage,
-        BALL_PATH,
-        SIM_PATH,
-        COLLISION_PATH,
-        VISUAL_PATH,
-        True,
-        False,
-        True,
+    defaults = {
+        "density": ARGS.density,
+        "youngs_modulus": ARGS.youngs_modulus,
+        "poissons_ratio": ARGS.poissons_ratio,
+        "linear_damping": ARGS.linear_damping,
+        "settling_damping": ARGS.settling_damping,
+        "restitution": ARGS.restitution,
+    }
+    if ARGS.body_config:
+        body_config_path = Path(ARGS.body_config).resolve()
+        body_config = json.loads(body_config_path.read_text(encoding="utf-8"))
+        body_specs = body_config.get("bodies") or []
+        if not body_specs:
+            raise ValueError(f"Body config has no bodies: {body_config_path}")
+        for spec in body_specs:
+            spec["spawn"] = (
+                float(spec.pop("spawn_x")),
+                float(spec.pop("drop_height")),
+                float(spec.pop("spawn_z")),
+            )
+            spec["model_height"] = float(spec["model_height"])
+            spec["model_yaw"] = float(spec.get("model_yaw", 0.0))
+            for key, value in defaults.items():
+                spec[key] = float(spec.get(key, value))
+    else:
+        body_specs = [
+            {
+                "model": ARGS.model,
+                "model_height": ARGS.model_height,
+                "model_yaw": ARGS.model_yaw,
+                "spawn": (ARGS.spawn_x, ARGS.drop_height, ARGS.spawn_z),
+                **defaults,
+            }
+        ]
+        for values in ARGS.secondary_body:
+            model, height, yaw, spawn_x, drop_height, spawn_z = values
+            body_specs.append(
+                {
+                    "model": model,
+                    "model_height": float(height),
+                    "model_yaw": float(yaw),
+                    "spawn": (float(spawn_x), float(drop_height), float(spawn_z)),
+                    **defaults,
+                }
+            )
+    bodies = []
+    for index, spec in enumerate(body_specs):
+        physics_kind = spec.get("physics_kind", "deformable")
+        if physics_kind not in {"deformable", "rigid"}:
+            raise ValueError(f"Unsupported physics_kind for body {index}: {physics_kind}")
+        physics_material_path = Sdf.Path(f"/World/Looks/BodyPhysics_{index:02d}")
+        UsdShade.Material.Define(stage, physics_material_path)
+        if physics_kind == "deformable" and not deformableUtils.add_deformable_material(
+            stage,
+            physics_material_path,
+            density=spec["density"],
+            static_friction=0.42,
+            dynamic_friction=0.30,
+            youngs_modulus=spec["youngs_modulus"],
+            poissons_ratio=spec["poissons_ratio"],
+        ):
+            raise RuntimeError(f"add_deformable_material returned False for body {index}")
+        material_prim = stage.GetPrimAtPath(physics_material_path)
+        contact_material = UsdPhysics.MaterialAPI.Apply(material_prim)
+        contact_material.CreateStaticFrictionAttr().Set(0.42)
+        contact_material.CreateDynamicFrictionAttr().Set(0.30)
+        contact_material.CreateRestitutionAttr().Set(float(spec["restitution"]))
+        create_body = create_rigid_body if physics_kind == "rigid" else create_deformable_body
+        body = create_body(stage, index, spec, ball_material, physics_material_path)
+        body["physics"] = {
+            key: float(spec[key]) for key in defaults
+        }
+        bodies.append(body)
+    print(
+        f"[dynamic-bodies] count={len(bodies)} "
+        + " ".join(
+            f"body{body['index']}={body['physics_kind']}:{Path(body['model']).name}@{body['spawn']}"
+            for body in bodies
+        )
     )
-    if not hierarchy_created:
-        raise RuntimeError("create_auto_volume_deformable_hierarchy returned False")
-    root_prim = ball_root.GetPrim()
-    root_prim.GetAttribute("physxDeformableBody:resolution").Set(ARGS.deformable_resolution)
-    if not root_prim.ApplyAPI("PhysxBaseDeformableBodyAPI"):
-        raise RuntimeError("Failed to apply PhysxBaseDeformableBodyAPI")
-    root_prim.GetAttribute("physxDeformableBody:linearDamping").Set(ARGS.linear_damping)
-    root_prim.GetAttribute("physxDeformableBody:settlingDamping").Set(18.0)
-    root_prim.GetAttribute("physxDeformableBody:solverPositionIterationCount").Set(24)
-    root_prim.GetAttribute("physxDeformableBody:enableSpeculativeCCD").Set(True)
-    root_prim.GetAttribute("physxDeformableBody:selfCollision").Set(False)
-    root_prim.GetAttribute("physxDeformableBody:selfCollisionFilterDistance").Set(
-        ARGS.self_collision_filter_distance
-    )
-
-    collision_prim = stage.GetPrimAtPath(COLLISION_PATH)
-    if collision_prim and collision_prim.IsValid():
-        collision_prim.ApplyAPI(PhysxSchema.PhysxCollisionAPI)
-        physx_collision = PhysxSchema.PhysxCollisionAPI(collision_prim)
-        physx_collision.CreateContactOffsetAttr().Set(0.03)
-        physx_collision.CreateRestOffsetAttr().Set(0.01)
-
-    deformable_material_path = Sdf.Path("/World/Looks/SoftSiliconePhysics")
-    UsdShade.Material.Define(stage, deformable_material_path)
-    if not deformableUtils.add_deformable_material(
-        stage,
-        deformable_material_path,
-        density=ARGS.density,
-        static_friction=0.42,
-        dynamic_friction=0.30,
-        youngs_modulus=ARGS.youngs_modulus,
-        poissons_ratio=ARGS.poissons_ratio,
-    ):
-        raise RuntimeError("add_deformable_material returned False")
-    physicsUtils.add_physics_material_to_prim(stage, root_prim, deformable_material_path)
 
     camera = UsdGeom.Camera.Define(stage, "/World/HeroCamera")
     camera.CreateFocalLengthAttr(ARGS.camera_focal_length)
@@ -1787,7 +2103,7 @@ def build_scene():
             8.0,
             8.0,
         )
-    return stage, visual, root_prim, camera, len(ball_points), len(ball_triangles)
+    return stage, bodies, camera
 
 
 def main():
@@ -1820,7 +2136,11 @@ def main():
             if ARGS.environment_panorama
             else "Building studio, closed elephant mesh, and volume deformable hierarchy",
         )
-        stage, visual, root_prim, camera, visual_vertex_count, visual_triangle_count = build_scene()
+        stage, bodies, camera = build_scene()
+        visual = bodies[0]["visual"] if bodies else None
+        root_prim = bodies[0]["root"] if bodies else None
+        visual_vertex_count = sum(body["vertex_count"] for body in bodies)
+        visual_triangle_count = sum(body["triangle_count"] for body in bodies)
         settings = carb.settings.get_settings()
         settings.set("/rtx/rendermode", ARGS.renderer)
         settings.set("/persistent/app/viewport/displayOptions", 0)
@@ -1900,30 +2220,52 @@ def main():
             print(f"[complete] valid=True static-panorama report={REPORT_PATH}")
             return 0
 
-        initial = current_snapshot(stage, visual, root_prim, -1)
-        snapshots = [initial]
+        body_snapshots = [
+            [current_snapshot(stage, body["visual"], body["root"], -1)] for body in bodies
+        ]
+        snapshots = body_snapshots[0]
+        initial = snapshots[0]
         initial_height = initial["height"]
         initial_center_height = float(initial["center"][1])
 
-        stage_notice(3, "Attaching GPU PhysX and running deformable simulation")
+        stage_notice(3, "Attaching GPU PhysX and running mixed rigid/deformable simulation")
         simulation = get_physx_simulation_interface()
         stage_id = UsdUtils.StageCache.Get().GetId(stage).ToLongInt()
         simulation.attach_stage(stage_id)
         attached = True
 
         simulation_points_count = None
+        simulation_points_per_body = None
         for frame in range(ARGS.frames):
             simulation.simulate(1.0 / 60.0, frame / 60.0)
             simulation.fetch_results()
             simulation_app.update()
-            snapshot = current_snapshot(stage, visual, root_prim, frame)
-            snapshots.append(snapshot)
-            if not snapshot["finite"]:
-                raise RuntimeError(f"Non-finite deformable coordinates at physics frame {frame}")
+            frame_snapshots = []
+            for body, snapshots_for_body in zip(bodies, body_snapshots):
+                body_snapshot = current_snapshot(
+                    stage, body["visual"], body["root"], frame
+                )
+                snapshots_for_body.append(body_snapshot)
+                frame_snapshots.append(body_snapshot)
+                if not body_snapshot["finite"]:
+                    raise RuntimeError(
+                        f"Non-finite body coordinates at physics frame {frame} "
+                        f"for body {body['index']}"
+                    )
+            snapshot = frame_snapshots[0]
             if simulation_points_count is None:
-                sim_points = UsdGeom.TetMesh.Get(stage, SIM_PATH).GetPointsAttr().Get()
-                if sim_points is not None:
-                    simulation_points_count = len(sim_points)
+                simulation_points_per_body = []
+                for body in bodies:
+                    if body["physics_kind"] == "deformable":
+                        sim_points = UsdGeom.TetMesh.Get(
+                            stage, body["sim_path"]
+                        ).GetPointsAttr().Get()
+                        simulation_points_per_body.append(
+                            len(sim_points) if sim_points is not None else 0
+                        )
+                    else:
+                        simulation_points_per_body.append(0)
+                simulation_points_count = sum(simulation_points_per_body)
             if frame % 15 == 0 or frame == ARGS.frames - 1:
                 print(
                     f"[physics] frame={frame:03d}/{ARGS.frames - 1} "
@@ -1936,10 +2278,10 @@ def main():
 
         blender_cache = None
         if ARGS.export_blender_usd:
-            stage_notice(4, "Exporting visible soft-body motion for Blender")
+            stage_notice(4, "Exporting visible mixed-body motion for Blender")
             blender_cache = export_blender_animation_usd(
-                visual,
-                snapshots[1:],
+                [body["visual"] for body in bodies],
+                [snapshots_for_body[1:] for snapshots_for_body in body_snapshots],
                 ARGS.blender_usd_name,
                 frames_per_second=60.0,
             )
@@ -1949,7 +2291,20 @@ def main():
                 f"bytes={blender_cache['bytes']}"
             )
 
-        keyframes = choose_keyframes(snapshots, initial_height, ARGS.support_top_y)
+        contact_clearance = max(
+            0.035,
+            float(bodies[0]["collision_rest_offset"]) + 0.035,
+        )
+        if ARGS.prebuilt_collision_usd:
+            # The scene support value is only a reference height. Exact local
+            # triangle meshes can legitimately contact above that plane.
+            contact_clearance = max(contact_clearance, 0.15)
+        keyframes = choose_keyframes(
+            snapshots,
+            initial_height,
+            ARGS.support_top_y,
+            contact_clearance=contact_clearance,
+        )
         stage_notice(4, "Selecting keyframes from measured contact, squash, and rebound")
         index_map = {
             "initial": keyframes["initial"],
@@ -1977,10 +2332,21 @@ def main():
                     f"minimum_center_y={pre_render_min_center:.4f} "
                     f"escape_limit={terrain_escape_limit:.4f}"
                 )
-        elif not ARGS.allow_free_fall and pre_render_min_bottom < ARGS.support_top_y - 0.18:
+        # Exact local scene colliders are not necessarily planar, so their
+        # single support Y is only an anchor/reference height. Allow a little
+        # more transient extent variation than on generated flat patches,
+        # while the all-body check below still rejects gross escapes.
+        transient_penetration_tolerance = 0.25 if ARGS.prebuilt_collision_usd else 0.18
+        if (
+            not ARGS.uneven_ground
+            and not ARGS.allow_free_fall
+            and pre_render_min_bottom < ARGS.support_top_y - transient_penetration_tolerance
+        ):
             raise RuntimeError(
                 "Long-horizon flat-ground penetration detected before rendering: "
-                f"minimum_bottom_y={pre_render_min_bottom:.4f} support_y={ARGS.support_top_y:.4f}"
+                f"minimum_bottom_y={pre_render_min_bottom:.4f} "
+                f"support_y={ARGS.support_top_y:.4f} "
+                f"tolerance={transient_penetration_tolerance:.4f}"
             )
 
         for stale_name in PNG_NAMES + ORBIT_PNG_NAMES:
@@ -2051,7 +2417,11 @@ def main():
                         f"physics_frame={snapshot['frame']}"
                     )
 
-        all_finite = all(snapshot["finite"] for snapshot in snapshots)
+        all_finite = all(
+            snapshot["finite"]
+            for snapshots_for_body in body_snapshots
+            for snapshot in snapshots_for_body
+        )
         min_center_height = min(float(snapshot["center"][1]) for snapshot in snapshots)
         min_bottom = min(float(snapshot["minimum"][1]) for snapshot in snapshots)
         png_files = [OUTPUT_DIR / name for name in active_png_names]
@@ -2070,8 +2440,13 @@ def main():
         lateral_expansion_visible = (
             keyframes["maximum_horizontal_radius"] >= initial["horizontal_radius"] * 1.05
         )
-        penetration_limit = ARGS.support_top_y - 0.18
-        penetration_check_mode = "deformable_vs_flat_support"
+        penetration_tolerance = 0.25 if ARGS.prebuilt_collision_usd else 0.18
+        penetration_limit = ARGS.support_top_y - penetration_tolerance
+        penetration_check_mode = (
+            "deformable_vs_exact_local_mesh_reference"
+            if ARGS.prebuilt_collision_usd
+            else "deformable_vs_flat_support"
+        )
         no_obvious_penetration = min_bottom >= penetration_limit
         if ARGS.allow_free_fall:
             penetration_check_mode = "finite_support_free_fall"
@@ -2084,8 +2459,93 @@ def main():
             penetration_check_mode = "terrain_escape_and_visual_check"
             no_obvious_penetration = True
 
+        interbody_contacts = summarize_interbody_contacts(body_snapshots)
+        detected_interbody_contacts = sum(
+            1 for pair in interbody_contacts if pair["contact_detected"]
+        )
+        # Contact remains diagnostic by default. Dedicated collision experiments
+        # opt into a hard validation requirement with --require-interbody-contact.
+        interbody_contact_required = bool(ARGS.require_interbody_contact)
+        interbody_contact_valid = (
+            detected_interbody_contacts > 0 if interbody_contact_required else True
+        )
+        body_minimum_surfaces = [
+            min(float(snapshot["minimum"][1]) for snapshot in snapshots_for_body)
+            for snapshots_for_body in body_snapshots
+        ]
+        if ARGS.prebuilt_collision_usd:
+            # A single support Y cannot validate a spatially varying exact
+            # triangle mesh. Reject gross escapes while leaving local surface
+            # contact to PhysX plus representative-frame visual inspection.
+            all_bodies_penetration_valid = all(
+                value >= ARGS.support_top_y - 1.0 for value in body_minimum_surfaces
+            )
+        else:
+            all_bodies_penetration_valid = (
+                ARGS.allow_free_fall
+                or ARGS.uneven_ground
+                or all(value >= penetration_limit for value in body_minimum_surfaces)
+            )
+        body_final_states = [
+            {
+                "index": body["index"],
+                "physics_kind": body["physics_kind"],
+                "center": [float(value) for value in snapshots_for_body[-1]["center"]],
+                "minimum": [float(value) for value in snapshots_for_body[-1]["minimum"]],
+                "maximum": [float(value) for value in snapshots_for_body[-1]["maximum"]],
+            }
+            for body, snapshots_for_body in zip(bodies, body_snapshots)
+        ]
+        body_camera_motion_states = []
+        for body, snapshots_for_body in zip(bodies, body_snapshots):
+            camera_motion_start = next(
+                (
+                    index
+                    for index, snapshot in enumerate(snapshots_for_body)
+                    if float(snapshot["minimum"][1]) <= ARGS.support_top_y + 0.8
+                ),
+                len(snapshots_for_body) - 1,
+            )
+            camera_snapshots = snapshots_for_body[camera_motion_start:]
+            body_camera_motion_states.append(
+                {
+                    "index": body["index"],
+                    "start_physics_frame": int(camera_snapshots[0]["frame"]),
+                    "minimum": [
+                        min(float(snapshot["minimum"][axis]) for snapshot in camera_snapshots)
+                        for axis in range(3)
+                    ],
+                    "maximum": [
+                        max(float(snapshot["maximum"][axis]) for snapshot in camera_snapshots)
+                        for axis in range(3)
+                    ],
+                }
+            )
         report.update(
             {
+                "body_count": len(bodies),
+                "bodies": [
+                    {
+                        "index": body["index"],
+                        "model": body["model"],
+                        "model_height": body["model_height"],
+                        "model_yaw": body["model_yaw"],
+                        "spawn": list(body["spawn"]),
+                        "physics_kind": body["physics_kind"],
+                        "visual_vertex_count": body["vertex_count"],
+                        "visual_triangle_count": body["triangle_count"],
+                        "simulation_points_count": simulation_points_per_body[body["index"]],
+                    }
+                    for body in bodies
+                ],
+                "interbody_contacts": interbody_contacts,
+                "detected_interbody_contact_pairs": detected_interbody_contacts,
+                "interbody_contact_valid": interbody_contact_valid,
+                "interbody_contact_required": interbody_contact_required,
+                "body_minimum_surface_y": body_minimum_surfaces,
+                "all_bodies_penetration_valid": all_bodies_penetration_valid,
+                "body_final_states": body_final_states,
+                "body_camera_motion_states": body_camera_motion_states,
                 "visual_vertex_count": visual_vertex_count,
                 "visual_triangle_count": visual_triangle_count,
                 "simulation_points_count": simulation_points_count,
@@ -2099,6 +2559,7 @@ def main():
                 "compression_ratio": keyframes["compression_ratio"],
                 "squash_ratio": keyframes["squash_ratio"],
                 "contact_detected": keyframes["contact_detected"],
+                "contact_clearance": contact_clearance,
                 "rebound_detected": keyframes["rebound_detected"],
                 "post_contact_rise": keyframes["rising_distance"],
                 "rebound_distance_threshold": keyframes["rebound_distance_threshold"],
@@ -2112,6 +2573,7 @@ def main():
                     "allow_free_fall": ARGS.allow_free_fall,
                 },
                 "local_collision_bounds": list(ARGS.local_collision_bounds) if ARGS.local_collision_bounds else None,
+                "prebuilt_collision_usd": ARGS.prebuilt_collision_usd,
                 "no_obvious_pedestal_penetration": no_obvious_penetration,
                 "penetration_check_mode": penetration_check_mode,
                 "compression_visible": compression_visible,
@@ -2142,14 +2604,50 @@ def main():
                     "poissons_ratio": ARGS.poissons_ratio,
                     "dynamic_friction": 0.30,
                     "linear_damping": ARGS.linear_damping,
+                    "settling_damping": ARGS.settling_damping,
+                    "restitution": ARGS.restitution,
                     "deformable_resolution": ARGS.deformable_resolution,
+                    "collision_contact_offset": ARGS.collision_contact_offset,
+                    "collision_rest_offset": ARGS.collision_rest_offset,
                     "model": str(ARGS.model),
                     "model_height": ARGS.model_height,
                     "model_yaw": ARGS.model_yaw,
+                    "model_scale_mode": ARGS.model_scale_mode,
                 },
+                "physics_bodies": [
+                    {
+                        "index": body["index"],
+                        "model": body["model"],
+                        "model_height": body["model_height"],
+                        "model_yaw": body["model_yaw"],
+                        "spawn": list(body["spawn"]),
+                        "collision_contact_offset": body["collision_contact_offset"],
+                        "collision_rest_offset": body["collision_rest_offset"],
+                        "physics_kind": body["physics_kind"],
+                        "physics_profile": body["physics_profile"],
+                        "material_preset": body["material_preset"],
+                        **body["physics"],
+                    }
+                    for body in bodies
+                ],
             }
         )
-        rebound_check_satisfied = keyframes["rebound_detected"] or ARGS.uneven_ground
+        deformation_check_satisfied = (
+            compression_visible and lateral_expansion_visible
+            if ARGS.expected_behavior == "soft"
+            else True
+        )
+        rebound_check_satisfied = (
+            keyframes["rebound_detected"]
+            or ARGS.uneven_ground
+            or ARGS.expected_behavior == "hard"
+        )
+        report["expected_behavior"] = ARGS.expected_behavior
+        report["validation_profile"] = ARGS.validation_profile
+        if ARGS.validation_profile == "generic":
+            deformation_check_satisfied = True
+            rebound_check_satisfied = True
+        report["deformation_check_satisfied"] = deformation_check_satisfied
         report["rebound_check_mode"] = (
             "terrain_contact_motion" if ARGS.uneven_ground else "world_vertical_rebound"
         )
@@ -2158,9 +2656,10 @@ def main():
             all_finite
             and keyframes["contact_detected"]
             and rebound_check_satisfied
-            and compression_visible
-            and lateral_expansion_visible
+            and deformation_check_satisfied
             and no_obvious_penetration
+            and all_bodies_penetration_valid
+            and interbody_contact_valid
             and usd_valid
             and len(verified_pngs) == len(active_png_names)
             and video_frames_valid
@@ -2171,7 +2670,9 @@ def main():
                 "Validation thresholds were not met: "
                 f"contact={keyframes['contact_detected']} rebound={keyframes['rebound_detected']} "
                 f"compression={keyframes['compression_ratio']:.3f} "
-                f"lateral={lateral_expansion_visible} penetration_ok={no_obvious_penetration}"
+                f"lateral={lateral_expansion_visible} penetration_ok={no_obvious_penetration} "
+                f"interbody_contacts={detected_interbody_contacts} "
+                f"interbody_required={interbody_contact_required}"
             )
 
         stage_notice(6, "Writing validation report and closing Isaac Sim")

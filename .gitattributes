@@ -10,6 +10,9 @@
 *.ps1 text eol=lf
 *.bat text eol=lf
 *.usda text eol=lf
+.gitignore text eol=lf
+.gitattributes text eol=lf
+.env*.example text eol=lf
 
 # Simulation, media, and geometry assets are binary.
 *.stl binary

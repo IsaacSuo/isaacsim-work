@@ -1,0 +1,629 @@
+{
+  "seed": 20260820,
+  "selection_policy": "shuffled_deck_without_replacement_within_scene",
+  "interbody_collision_layout": "three_near_coaxial_staggered_drops",
+  "simulation_model_pool": [
+    "banana.stl",
+    "bear.stl",
+    "bird.stl",
+    "cap.stl",
+    "carrot.stl",
+    "cat.stl",
+    "chair.stl",
+    "coral.stl",
+    "elephant.stl",
+    "elephant_1.stl",
+    "elephant_2.stl",
+    "fish.stl",
+    "fish_1.stl",
+    "heart.stl",
+    "rabbit.stl",
+    "statue.stl",
+    "tree.stl",
+    "tree_1.stl"
+  ],
+  "experiments": [
+    {
+      "id": "alley_random_mixed_collision",
+      "scene": "alley",
+      "camera_distance_scale": 0.78,
+      "bodies": [
+        {
+          "model": "bear.stl",
+          "model_height": 0.56,
+          "model_yaw": 9.1,
+          "offset_x": -0.06,
+          "offset_z": 0.03,
+          "drop_offset": 0.0,
+          "physics_profile": "silicone_soft",
+          "material_preset": "silicone_cloudy",
+          "collision_contact_offset": 0.12,
+          "collision_rest_offset": 0.1
+        },
+        {
+          "model": "coral.stl",
+          "model_height": 0.555,
+          "model_yaw": -9.4,
+          "offset_x": 0.05,
+          "offset_z": -0.04,
+          "drop_offset": 0.72,
+          "physics_profile": "hard_metal",
+          "material_preset": "brushed_metal",
+          "collision_contact_offset": 0.03,
+          "collision_rest_offset": 0.01
+        },
+        {
+          "model": "heart.stl",
+          "model_height": 0.569,
+          "model_yaw": 2.6,
+          "offset_x": 0.0,
+          "offset_z": 0.05,
+          "drop_offset": 1.44,
+          "physics_profile": "hard_white",
+          "material_preset": "rough_white",
+          "collision_contact_offset": 0.03,
+          "collision_rest_offset": 0.01
+        }
+      ]
+    },
+    {
+      "id": "apartment_random_mixed_collision",
+      "scene": "apartment",
+      "camera_distance_scale": 0.78,
+      "bodies": [
+        {
+          "model": "rabbit.stl",
+          "model_height": 0.593,
+          "model_yaw": 39.5,
+          "offset_x": -0.06,
+          "offset_z": 0.03,
+          "drop_offset": 0.0,
+          "physics_profile": "silicone_soft",
+          "material_preset": "silicone_cloudy",
+          "collision_contact_offset": 0.12,
+          "collision_rest_offset": 0.1
+        },
+        {
+          "model": "elephant_1.stl",
+          "model_height": 0.561,
+          "model_yaw": 20.5,
+          "offset_x": 0.05,
+          "offset_z": -0.04,
+          "drop_offset": 0.72,
+          "physics_profile": "hard_metal",
+          "material_preset": "brushed_metal",
+          "collision_contact_offset": 0.03,
+          "collision_rest_offset": 0.01
+        },
+        {
+          "model": "elephant_2.stl",
+          "model_height": 0.531,
+          "model_yaw": -6.9,
+          "offset_x": 0.0,
+          "offset_z": 0.05,
+          "drop_offset": 1.44,
+          "physics_profile": "hard_white",
+          "material_preset": "rough_white",
+          "collision_contact_offset": 0.03,
+          "collision_rest_offset": 0.01
+        }
+      ]
+    },
+    {
+      "id": "bedroom_random_mixed_collision",
+      "scene": "bedroom",
+      "camera_distance_scale": 0.78,
+      "bodies": [
+        {
+          "model": "chair.stl",
+          "model_height": 0.515,
+          "model_yaw": -52.0,
+          "offset_x": -0.06,
+          "offset_z": 0.03,
+          "drop_offset": 0.0,
+          "physics_profile": "hard_white",
+          "material_preset": "rough_white",
+          "collision_contact_offset": 0.03,
+          "collision_rest_offset": 0.01
+        },
+        {
+          "model": "tree.stl",
+          "model_height": 0.559,
+          "model_yaw": 36.8,
+          "offset_x": 0.05,
+          "offset_z": -0.04,
+          "drop_offset": 0.72,
+          "physics_profile": "hard_metal",
+          "material_preset": "brushed_metal",
+          "collision_contact_offset": 0.03,
+          "collision_rest_offset": 0.01
+        },
+        {
+          "model": "fish.stl",
+          "model_height": 0.539,
+          "model_yaw": -53.7,
+          "offset_x": 0.0,
+          "offset_z": 0.05,
+          "drop_offset": 1.44,
+          "physics_profile": "silicone_soft",
+          "material_preset": "silicone_cloudy",
+          "collision_contact_offset": 0.03,
+          "collision_rest_offset": 0.01
+        }
+      ]
+    },
+    {
+      "id": "city_random_mixed_collision",
+      "scene": "city",
+      "camera_distance_scale": 0.78,
+      "bodies": [
+        {
+          "model": "elephant.stl",
+          "model_height": 0.568,
+          "model_yaw": -50.1,
+          "offset_x": -0.06,
+          "offset_z": 0.03,
+          "drop_offset": 0.0,
+          "physics_profile": "hard_white",
+          "material_preset": "rough_white",
+          "collision_contact_offset": 0.03,
+          "collision_rest_offset": 0.01
+        },
+        {
+          "model": "bear.stl",
+          "model_height": 0.588,
+          "model_yaw": 10.3,
+          "offset_x": 0.05,
+          "offset_z": -0.04,
+          "drop_offset": 0.72,
+          "physics_profile": "silicone_soft",
+          "material_preset": "silicone_cloudy",
+          "collision_contact_offset": 0.03,
+          "collision_rest_offset": 0.01
+        },
+        {
+          "model": "cap.stl",
+          "model_height": 0.579,
+          "model_yaw": 26.2,
+          "offset_x": 0.0,
+          "offset_z": 0.05,
+          "drop_offset": 1.44,
+          "physics_profile": "hard_metal",
+          "material_preset": "brushed_metal",
+          "collision_contact_offset": 0.03,
+          "collision_rest_offset": 0.01
+        }
+      ]
+    },
+    {
+      "id": "classroom_random_mixed_collision",
+      "scene": "classroom",
+      "camera_distance_scale": 0.78,
+      "bodies": [
+        {
+          "model": "cat.stl",
+          "model_height": 0.589,
+          "model_yaw": 38.8,
+          "offset_x": -0.06,
+          "offset_z": 0.03,
+          "drop_offset": 0.0,
+          "physics_profile": "silicone_soft",
+          "material_preset": "silicone_cloudy",
+          "collision_contact_offset": 0.03,
+          "collision_rest_offset": 0.01
+        },
+        {
+          "model": "fish_1.stl",
+          "model_height": 0.599,
+          "model_yaw": 2.5,
+          "offset_x": 0.05,
+          "offset_z": -0.04,
+          "drop_offset": 0.72,
+          "physics_profile": "hard_white",
+          "material_preset": "rough_white",
+          "collision_contact_offset": 0.03,
+          "collision_rest_offset": 0.01
+        },
+        {
+          "model": "tree_1.stl",
+          "model_height": 0.537,
+          "model_yaw": 5.3,
+          "offset_x": 0.0,
+          "offset_z": 0.05,
+          "drop_offset": 1.44,
+          "physics_profile": "hard_metal",
+          "material_preset": "brushed_metal",
+          "collision_contact_offset": 0.03,
+          "collision_rest_offset": 0.01
+        }
+      ]
+    },
+    {
+      "id": "elevator_random_mixed_collision",
+      "scene": "elevator",
+      "camera_distance_scale": 0.78,
+      "bodies": [
+        {
+          "model": "bird.stl",
+          "model_height": 0.526,
+          "model_yaw": 43.9,
+          "offset_x": -0.06,
+          "offset_z": 0.03,
+          "drop_offset": 0.0,
+          "physics_profile": "hard_metal",
+          "material_preset": "brushed_metal",
+          "collision_contact_offset": 0.03,
+          "collision_rest_offset": 0.01
+        },
+        {
+          "model": "carrot.stl",
+          "model_height": 0.504,
+          "model_yaw": 6.7,
+          "offset_x": 0.35,
+          "offset_z": -0.04,
+          "drop_offset": 0.72,
+          "physics_profile": "hard_white",
+          "material_preset": "rough_white",
+          "collision_contact_offset": 0.03,
+          "collision_rest_offset": 0.01
+        },
+        {
+          "model": "banana.stl",
+          "model_height": 0.569,
+          "model_yaw": -17.3,
+          "offset_x": 0.0,
+          "offset_z": 0.05,
+          "drop_offset": 1.44,
+          "physics_profile": "silicone_firm",
+          "material_preset": "silicone_cloudy",
+          "collision_contact_offset": 0.03,
+          "collision_rest_offset": 0.01
+        }
+      ]
+    },
+    {
+      "id": "factory_random_mixed_collision",
+      "scene": "factory",
+      "camera_distance_scale": 0.78,
+      "bodies": [
+        {
+          "model": "banana.stl",
+          "model_height": 0.507,
+          "model_yaw": 42.8,
+          "offset_x": -0.06,
+          "offset_z": 0.03,
+          "drop_offset": 0.0,
+          "physics_profile": "hard_white",
+          "material_preset": "rough_white",
+          "collision_contact_offset": 0.03,
+          "collision_rest_offset": 0.01
+        },
+        {
+          "model": "heart.stl",
+          "model_height": 0.506,
+          "model_yaw": 24.9,
+          "offset_x": 0.05,
+          "offset_z": -0.04,
+          "drop_offset": 0.72,
+          "physics_profile": "hard_metal",
+          "material_preset": "brushed_metal",
+          "collision_contact_offset": 0.03,
+          "collision_rest_offset": 0.01
+        },
+        {
+          "model": "statue.stl",
+          "model_height": 0.505,
+          "model_yaw": -6.2,
+          "offset_x": 0.0,
+          "offset_z": 0.05,
+          "drop_offset": 1.44,
+          "physics_profile": "silicone_firm",
+          "material_preset": "silicone_cloudy",
+          "collision_contact_offset": 0.03,
+          "collision_rest_offset": 0.01
+        }
+      ]
+    },
+    {
+      "id": "garage_random_mixed_collision",
+      "scene": "garage",
+      "camera_distance_scale": 0.78,
+      "bodies": [
+        {
+          "model": "tree.stl",
+          "model_height": 0.504,
+          "model_yaw": -7.7,
+          "offset_x": -0.06,
+          "offset_z": 0.03,
+          "drop_offset": 0.0,
+          "physics_profile": "hard_metal",
+          "material_preset": "brushed_metal",
+          "collision_contact_offset": 0.03,
+          "collision_rest_offset": 0.01
+        },
+        {
+          "model": "carrot.stl",
+          "model_height": 0.565,
+          "model_yaw": 11.7,
+          "offset_x": 0.05,
+          "offset_z": -0.04,
+          "drop_offset": 0.72,
+          "physics_profile": "silicone_firm",
+          "material_preset": "silicone_cloudy",
+          "collision_contact_offset": 0.03,
+          "collision_rest_offset": 0.01
+        },
+        {
+          "model": "bird.stl",
+          "model_height": 0.523,
+          "model_yaw": -52.1,
+          "offset_x": 0.0,
+          "offset_z": 0.05,
+          "drop_offset": 1.44,
+          "physics_profile": "hard_white",
+          "material_preset": "rough_white",
+          "collision_contact_offset": 0.03,
+          "collision_rest_offset": 0.01
+        }
+      ]
+    },
+    {
+      "id": "graffiti_warehouse_random_mixed_collision",
+      "scene": "graffiti_warehouse",
+      "camera_distance_scale": 0.78,
+      "bodies": [
+        {
+          "model": "elephant_2.stl",
+          "model_height": 0.574,
+          "model_yaw": 23.8,
+          "offset_x": -0.06,
+          "offset_z": 0.03,
+          "drop_offset": 0.0,
+          "physics_profile": "hard_white",
+          "material_preset": "rough_white",
+          "collision_contact_offset": 0.03,
+          "collision_rest_offset": 0.01
+        },
+        {
+          "model": "coral.stl",
+          "model_height": 0.543,
+          "model_yaw": -4.7,
+          "offset_x": 0.05,
+          "offset_z": -0.04,
+          "drop_offset": 0.72,
+          "physics_profile": "silicone_soft",
+          "material_preset": "silicone_cloudy",
+          "collision_contact_offset": 0.03,
+          "collision_rest_offset": 0.01
+        },
+        {
+          "model": "elephant_1.stl",
+          "model_height": 0.574,
+          "model_yaw": 29.7,
+          "offset_x": 0.0,
+          "offset_z": 0.05,
+          "drop_offset": 1.44,
+          "physics_profile": "hard_metal",
+          "material_preset": "brushed_metal",
+          "collision_contact_offset": 0.03,
+          "collision_rest_offset": 0.01
+        }
+      ]
+    },
+    {
+      "id": "mountain_random_mixed_collision",
+      "scene": "mountain",
+      "camera_distance_scale": 0.88,
+      "bodies": [
+        {
+          "model": "cap.stl",
+          "model_height": 0.521,
+          "model_yaw": 36.6,
+          "offset_x": -0.06,
+          "offset_z": 0.03,
+          "drop_offset": 0.0,
+          "physics_profile": "silicone_soft",
+          "material_preset": "silicone_cloudy",
+          "collision_contact_offset": 0.03,
+          "collision_rest_offset": 0.01
+        },
+        {
+          "model": "fish_1.stl",
+          "model_height": 0.531,
+          "model_yaw": 47.6,
+          "offset_x": 0.05,
+          "offset_z": -0.04,
+          "drop_offset": 0.72,
+          "physics_profile": "hard_white",
+          "material_preset": "rough_white",
+          "collision_contact_offset": 0.03,
+          "collision_rest_offset": 0.01
+        },
+        {
+          "model": "elephant.stl",
+          "model_height": 0.566,
+          "model_yaw": 27.1,
+          "offset_x": 0.0,
+          "offset_z": 0.05,
+          "drop_offset": 1.44,
+          "physics_profile": "hard_metal",
+          "material_preset": "brushed_metal",
+          "collision_contact_offset": 0.03,
+          "collision_rest_offset": 0.01
+        }
+      ]
+    },
+    {
+      "id": "subway2_random_mixed_collision",
+      "scene": "subway2",
+      "camera_distance_scale": 0.78,
+      "bodies": [
+        {
+          "model": "bear.stl",
+          "model_height": 0.52,
+          "model_yaw": -29.6,
+          "offset_x": -0.06,
+          "offset_z": 0.03,
+          "drop_offset": 0.0,
+          "physics_profile": "hard_metal",
+          "material_preset": "brushed_metal",
+          "collision_contact_offset": 0.03,
+          "collision_rest_offset": 0.01
+        },
+        {
+          "model": "tree_1.stl",
+          "model_height": 0.557,
+          "model_yaw": -52.5,
+          "offset_x": 0.05,
+          "offset_z": -0.04,
+          "drop_offset": 0.72,
+          "physics_profile": "hard_white",
+          "material_preset": "rough_white",
+          "collision_contact_offset": 0.03,
+          "collision_rest_offset": 0.01
+        },
+        {
+          "model": "chair.stl",
+          "model_height": 0.514,
+          "model_yaw": 31.0,
+          "offset_x": 0.0,
+          "offset_z": 0.05,
+          "drop_offset": 1.44,
+          "physics_profile": "silicone_firm",
+          "material_preset": "silicone_cloudy",
+          "collision_contact_offset": 0.03,
+          "collision_rest_offset": 0.01
+        }
+      ]
+    },
+    {
+      "id": "swamp_random_mixed_collision",
+      "scene": "swamp",
+      "camera_distance_scale": 0.78,
+      "bodies": [
+        {
+          "model": "fish.stl",
+          "model_height": 0.53,
+          "model_yaw": 13.2,
+          "offset_x": -0.06,
+          "offset_z": 0.03,
+          "drop_offset": 0.0,
+          "physics_profile": "hard_metal",
+          "material_preset": "brushed_metal",
+          "collision_contact_offset": 0.03,
+          "collision_rest_offset": 0.01
+        },
+        {
+          "model": "rabbit.stl",
+          "model_height": 0.55,
+          "model_yaw": 4.9,
+          "offset_x": 0.05,
+          "offset_z": -0.04,
+          "drop_offset": 0.72,
+          "physics_profile": "silicone_firm",
+          "material_preset": "silicone_cloudy",
+          "collision_contact_offset": 0.03,
+          "collision_rest_offset": 0.01
+        },
+        {
+          "model": "cat.stl",
+          "model_height": 0.562,
+          "model_yaw": -34.4,
+          "offset_x": 0.0,
+          "offset_z": 0.05,
+          "drop_offset": 1.44,
+          "physics_profile": "hard_white",
+          "material_preset": "rough_white",
+          "collision_contact_offset": 0.03,
+          "collision_rest_offset": 0.01
+        }
+      ]
+    },
+    {
+      "id": "warehouse_random_mixed_collision",
+      "scene": "warehouse",
+      "camera_distance_scale": 0.78,
+      "bodies": [
+        {
+          "model": "carrot.stl",
+          "model_height": 0.552,
+          "model_yaw": -17.8,
+          "offset_x": -0.06,
+          "offset_z": 0.03,
+          "drop_offset": 0.0,
+          "physics_profile": "hard_white",
+          "material_preset": "rough_white",
+          "collision_contact_offset": 0.12,
+          "collision_rest_offset": 0.1
+        },
+        {
+          "model": "statue.stl",
+          "model_height": 0.569,
+          "model_yaw": -6.7,
+          "offset_x": 0.05,
+          "offset_z": -0.04,
+          "drop_offset": 0.72,
+          "physics_profile": "hard_metal",
+          "material_preset": "brushed_metal",
+          "collision_contact_offset": 0.03,
+          "collision_rest_offset": 0.01
+        },
+        {
+          "model": "elephant.stl",
+          "model_height": 0.55,
+          "model_yaw": 44.2,
+          "offset_x": 0.0,
+          "offset_z": 0.05,
+          "drop_offset": 1.44,
+          "physics_profile": "silicone_firm",
+          "material_preset": "silicone_cloudy",
+          "collision_contact_offset": 0.03,
+          "collision_rest_offset": 0.01
+        }
+      ]
+    },
+    {
+      "id": "hospital_random_mixed_collision",
+      "scene": "hospital",
+      "camera_distance_scale": 0.78,
+      "bodies": [
+        {
+          "model": "bird.stl",
+          "model_height": 0.584,
+          "model_yaw": -18.6,
+          "offset_x": -0.06,
+          "offset_z": 0.03,
+          "drop_offset": 0.0,
+          "physics_profile": "hard_metal",
+          "material_preset": "brushed_metal",
+          "collision_contact_offset": 0.03,
+          "collision_rest_offset": 0.01
+        },
+        {
+          "model": "banana.stl",
+          "model_height": 0.543,
+          "model_yaw": -13.4,
+          "offset_x": 0.05,
+          "offset_z": -0.04,
+          "drop_offset": 0.72,
+          "physics_profile": "silicone_soft",
+          "material_preset": "silicone_cloudy",
+          "collision_contact_offset": 0.03,
+          "collision_rest_offset": 0.01
+        },
+        {
+          "model": "bear.stl",
+          "model_height": 0.54,
+          "model_yaw": -23.1,
+          "offset_x": 0.0,
+          "offset_z": 0.05,
+          "drop_offset": 1.44,
+          "physics_profile": "hard_white",
+          "material_preset": "rough_white",
+          "collision_contact_offset": 0.03,
+          "collision_rest_offset": 0.01
+        }
+      ]
+    }
+  ]
+}
