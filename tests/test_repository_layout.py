@@ -84,13 +84,13 @@ class RepositoryLayoutTests(unittest.TestCase):
         )
         self.assertEqual(config, generate(config["seed"]))
 
-    def test_m0_environment_is_versioned(self):
+    def test_candidate_environment_is_versioned(self):
         environment = json.loads(
             (ROOT / "configs/production_environment.json").read_text(
                 encoding="utf-8"
             )
         )
-        self.assertEqual(environment["baseline"], "M0")
+        self.assertEqual(environment["baseline_status"], "pre_m0_candidate")
         self.assertTrue(environment["isaac_sim"]["version"].startswith("6.0.1"))
         self.assertEqual(environment["blender"]["version"], "5.0.1")
         self.assertEqual(environment["timing"]["physics_frames"], 300)

@@ -1,5 +1,5 @@
 {
-  "baseline": "M0",
+  "baseline_status": "pre_m0_candidate",
   "isaac_sim": {
     "version": "6.0.1-rc.7+release.42383.32955d8d.gl",
     "physx_extension_version": "110.1.13",
@@ -31,7 +31,7 @@
     "driver_version_windows": "32.0.16.1062"
   },
   "notes": [
-    "The Linux server must use the same Isaac Sim and Blender major/minor versions for M0 reproducibility.",
+    "The Linux server must use the same Isaac Sim and Blender major/minor versions when reproducing this candidate baseline.",
     "GPU model and OS driver packaging may differ, but the resolved Cycles device and all software versions must be recorded in run reports.",
     "This file records production software and numerical settings, not real-world material calibration."
   ]

@@ -41,8 +41,8 @@ output/blender_scene_videos/videos/*.mp4
 
 环境 USD 只负责静态场景和精准碰撞；PhysX 负责运动；原始 `.blend`、统一 HDRI、场景灯具和 Cycles 负责最终视觉。
 
-当前冻结生产层的范围、版本和 14 场景严格验收门槛见
-[`docs/M0_PRODUCTION_BASELINE.md`](docs/M0_PRODUCTION_BASELINE.md)。该 M0 基线是后续 benchmark schema 与真值 exporter 的底座，不等同于已经完成的数据集格式。
+当前生产管线候选基线的范围、版本和 14 场景回归门槛见
+[`docs/PRODUCTION_BASELINE_CANDIDATE.md`](docs/PRODUCTION_BASELINE_CANDIDATE.md)。它用于在持续开发期间发现回归，并非冻结的 M0，也不代表 benchmark schema 已经稳定。
 
 ## 目录结构
 

@@ -1,4 +1,4 @@
-"""Verify the frozen 14-scene PhysX-to-Blender M0 production batch."""
+"""Verify the current 14-scene PhysX-to-Blender baseline candidate."""
 
 from __future__ import annotations
 
@@ -183,7 +183,7 @@ def main():
 
         rows.append({"id": experiment_id, "scene": scene, "valid": not errors, "errors": errors})
         failures.extend(f"{experiment_id}: {error}" for error in errors)
-        print(f"[m0-audit] {experiment_id} valid={not errors} errors={len(errors)}")
+        print(f"[baseline-candidate] {experiment_id} valid={not errors} errors={len(errors)}")
 
     if set(summary_results) != {row["id"] for row in config["experiments"]}:
         failures.append("batch summary does not contain exactly the configured experiments")
@@ -198,11 +198,11 @@ def main():
         "results": rows,
         "failures": failures,
     }
-    audit_path = args.output / "m0_production_audit.json"
+    audit_path = args.output / "production_baseline_candidate_audit.json"
     audit_path.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
-    print(f"[m0-audit] complete valid={payload['valid']} report={audit_path}")
+    print(f"[baseline-candidate] complete valid={payload['valid']} report={audit_path}")
     for failure in failures:
-        print(f"[m0-audit] failure={failure}")
+        print(f"[baseline-candidate] failure={failure}")
     return 0 if payload["valid"] else 1
 
 
