@@ -72,6 +72,11 @@ def physics_cache_matches(report, frame_count, body_config, collision_asset=None
         "collision_contact_offset",
         "collision_rest_offset",
     )
+    collision_keys = (
+        "collision_approximation",
+        "sdf_resolution",
+        "sdf_enable_remeshing",
+    )
     for actual, expected in zip(actual_bodies, expected_bodies):
         if not recorded_path_matches(actual.get("model"), expected["model"]):
             return False
@@ -80,6 +85,8 @@ def physics_cache_matches(report, frame_count, body_config, collision_asset=None
         if actual.get("material_preset") != expected.get("material_preset"):
             return False
         if actual.get("physics_kind") != expected.get("physics_kind"):
+            return False
+        if any(actual.get(key) != expected.get(key) for key in collision_keys):
             return False
         if any(
             not math.isclose(
@@ -118,6 +125,22 @@ def validate_config(config, profiles, material_presets, scene_configs):
     ids = [experiment.get("id") for experiment in experiments]
     if len(set(ids)) != len(ids):
         raise ValueError("Multi-object experiment ids must be unique")
+    model_pool = set(config.get("simulation_model_pool") or [])
+    collision_policies = config.get("rigid_collision_policies") or {}
+    if set(collision_policies) != model_pool:
+        raise ValueError(
+            "Rigid collision policies must cover the complete simulation model pool"
+        )
+    for model, policy in collision_policies.items():
+        approximation = policy.get("approximation")
+        if approximation not in {"convexDecomposition", "sdf"}:
+            raise ValueError(
+                f"Unsupported rigid collision approximation for {model}: {approximation}"
+            )
+        if approximation == "sdf":
+            resolution = int(policy.get("sdf_resolution", 0))
+            if resolution <= 1:
+                raise ValueError(f"Invalid SDF resolution for {model}: {resolution}")
     for experiment in experiments:
         bodies = experiment.get("bodies") or []
         if len(bodies) < 3:
@@ -136,7 +159,7 @@ def validate_config(config, profiles, material_presets, scene_configs):
                 )
 
 
-def build_body_config(experiment, scene, profiles):
+def build_body_config(experiment, scene, profiles, collision_policies):
     bodies = []
     for body in experiment["bodies"]:
         model_path = SIMULATION_MODELS / body["model"]
@@ -144,6 +167,24 @@ def build_body_config(experiment, scene, profiles):
             raise FileNotFoundError(model_path)
         profile = profiles[body["physics_profile"]]
         expected_behavior = profile["expected_behavior"]
+        physics_kind = "rigid" if expected_behavior == "hard" else "deformable"
+        if physics_kind == "rigid":
+            collision_policy = collision_policies[body["model"]]
+            collision_approximation = collision_policy["approximation"]
+            sdf_resolution = (
+                int(collision_policy["sdf_resolution"])
+                if collision_approximation == "sdf"
+                else None
+            )
+            sdf_enable_remeshing = (
+                bool(collision_policy.get("sdf_enable_remeshing", False))
+                if collision_approximation == "sdf"
+                else None
+            )
+        else:
+            collision_approximation = "tetrahedral"
+            sdf_resolution = None
+            sdf_enable_remeshing = None
         bodies.append(
             {
                 "model": str(model_path),
@@ -160,7 +201,10 @@ def build_body_config(experiment, scene, profiles):
                 "restitution": profile["restitution"],
                 "collision_contact_offset": body.get("collision_contact_offset", 0.03),
                 "collision_rest_offset": body.get("collision_rest_offset", 0.01),
-                "physics_kind": "rigid" if expected_behavior == "hard" else "deformable",
+                "physics_kind": physics_kind,
+                "collision_approximation": collision_approximation,
+                "sdf_resolution": sdf_resolution,
+                "sdf_enable_remeshing": sdf_enable_remeshing,
                 "physics_profile": body["physics_profile"],
                 "material_preset": body["material_preset"],
             }
@@ -168,12 +212,14 @@ def build_body_config(experiment, scene, profiles):
     return {"bodies": bodies}
 
 
-def run_physics(args, experiment, scene, run_dir, profiles):
+def run_physics(args, experiment, scene, run_dir, profiles, collision_policies):
     physics_dir = run_dir / "isaac" / scene["name"]
     report_path = physics_dir / "run_complete.json"
     cache_path = physics_dir / "soft_body_blender.usdc"
     body_config_path = physics_dir / "bodies.json"
-    body_config = build_body_config(experiment, scene, profiles)
+    body_config = build_body_config(
+        experiment, scene, profiles, collision_policies
+    )
     write_json(body_config_path, body_config)
     collision_asset = ensure_collision_asset(args.output, scene) if scene["needs_exact_collision"] else None
     if not args.force and report_path.is_file() and cache_path.is_file():
@@ -238,27 +284,9 @@ def run_physics(args, experiment, scene, run_dir, profiles):
     print(f"[physics-start] {experiment['id']} bodies={len(body_config['bodies'])}", flush=True)
     completed = subprocess.run(command, cwd=ROOT, check=False)
     if completed.returncode != 0 or not report_path.is_file():
-        if cache_path.is_file():
-            failed_report = json.loads(report_path.read_text(encoding="utf-8")) if report_path.is_file() else {}
-            exported = failed_report.get("blender_animation_cache") or {}
-            if exported.get("valid") and exported.get("body_count") == len(body_config["bodies"]):
-                print(
-                    f"[physics-cache-recovered] {experiment['id']} "
-                    "export is valid; validation failure did not invalidate the animation cache",
-                    flush=True,
-                )
-                return failed_report, physics_dir
         raise RuntimeError(f"Physics failed with code {completed.returncode}")
     report = json.loads(report_path.read_text(encoding="utf-8"))
     if not report.get("valid"):
-        exported = report.get("blender_animation_cache") or {}
-        if exported.get("valid") and exported.get("body_count") == len(body_config["bodies"]):
-            print(
-                f"[physics-cache-recovered] {experiment['id']} "
-                "export is valid; validation failure did not invalidate the animation cache",
-                flush=True,
-            )
-            return report, physics_dir
         raise RuntimeError(f"Physics report is invalid: {report.get('error')}")
     return report, physics_dir
 
@@ -344,14 +372,27 @@ def run_render(args, experiment, scene, physics_dir, physics_report, frame_count
     frames_dir = args.output / "video_frames" / experiment["id"]
     video_path = args.output / "videos" / f"{experiment['id']}.mp4"
     report_path = frames_dir / "blender_render_report.json"
+    physics_report_path = physics_dir / "run_complete.json"
+    cache_path = physics_dir / "soft_body_blender.usdc"
     frames_dir.mkdir(parents=True, exist_ok=True)
     video_path.parent.mkdir(parents=True, exist_ok=True)
     presets = ",".join(body["material_preset"] for body in experiment["bodies"])
     eye, target, camera_policy = final_state_camera(scene, experiment, physics_report)
     if not args.force and report_path.is_file() and video_path.is_file():
         report = json.loads(report_path.read_text(encoding="utf-8"))
+        render_is_newer_than_physics = (
+            cache_path.is_file()
+            and physics_report_path.is_file()
+            and report_path.stat().st_mtime_ns
+            >= max(
+                cache_path.stat().st_mtime_ns,
+                physics_report_path.stat().st_mtime_ns,
+            )
+            and video_path.stat().st_mtime_ns >= report_path.stat().st_mtime_ns
+        )
         if (
-            report.get("valid")
+            render_is_newer_than_physics
+            and report.get("valid")
             and report.get("body_count") == len(experiment["bodies"])
             and report.get("material_presets") == presets.split(",")
             and report.get("rendered_frame_count") == frame_count
@@ -403,6 +444,7 @@ def main():
     profile_config = json.loads(PROFILE_CONFIG.read_text(encoding="utf-8"))
     profiles = profile_config["physics_profiles"]
     material_presets = profile_config["material_presets"]
+    collision_policies = config["rigid_collision_policies"]
     scene_configs = json.loads(SCENE_CONFIG_PATH.read_text(encoding="utf-8"))
     validate_config(config, profiles, material_presets, scene_configs)
     selected = set(args.only or [row["id"] for row in config["experiments"]])
@@ -416,9 +458,46 @@ def main():
             run_dir = args.output / "runs" / experiment["id"]
             physics_dir = run_dir / "isaac" / scene["name"]
             if args.stage in {"physics", "all"}:
-                physics_report, physics_dir = run_physics(args, experiment, scene, run_dir, profiles)
+                physics_report, physics_dir = run_physics(
+                    args,
+                    experiment,
+                    scene,
+                    run_dir,
+                    profiles,
+                    collision_policies,
+                )
             else:
-                physics_report = json.loads((physics_dir / "run_complete.json").read_text(encoding="utf-8"))
+                report_path = physics_dir / "run_complete.json"
+                cache_path = physics_dir / "soft_body_blender.usdc"
+                physics_report = json.loads(report_path.read_text(encoding="utf-8"))
+                body_config = build_body_config(
+                    experiment, scene, profiles, collision_policies
+                )
+                collision_asset = (
+                    ROOT
+                    / "output"
+                    / "scene_collision_assets"
+                    / f"{scene['name']}_exact_collision.usdc"
+                    if scene["needs_exact_collision"]
+                    else None
+                )
+                exported = physics_report.get("blender_animation_cache") or {}
+                if (
+                    not cache_path.is_file()
+                    or cache_path.stat().st_size <= 0
+                    or not physics_cache_matches(
+                        physics_report,
+                        args.frames,
+                        body_config,
+                        collision_asset,
+                    )
+                    or not exported.get("valid")
+                    or exported.get("body_count") != len(body_config["bodies"])
+                ):
+                    raise RuntimeError(
+                        "Existing physics report/cache is invalid or does not match "
+                        "the current production configuration"
+                    )
             result["physics_report"] = str(physics_dir / "run_complete.json")
             result["body_count"] = len(experiment["bodies"])
             if args.stage in {"render", "all"}:

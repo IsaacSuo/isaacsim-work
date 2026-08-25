@@ -81,6 +81,7 @@
     "camera_eye": [6.0, 1.2, 0.0],
     "camera_target": [10.0, -0.7, 4.0],
     "ground_prims": [],
+    "collision_environment_prim": "/World/Environment/Sketchfab_model/A_post_Soviet_classroom_obj_cleaner_materialmerger_gles/Object_6/Object_4_002",
     "local_collision_bounds": [6.0, -2.9669698882765785, 0.0, 14.0, -1.7169698882765785, 8.0],
     "orbit_yaw_degrees": [-35.0, -18.0, 0.0],
     "emissive_mesh_lights": true,
@@ -329,6 +330,7 @@
     "camera_target": [5.9384468324, 3.1272703045, -0.4558828708],
     "ground_prims": [],
     "local_collision_bounds": [-12.0615531676, -8.5, -18.4558828708, 23.9384468324, 3.0, 17.5441171292],
+    "allow_free_fall": true,
     "uneven_ground": true
   },
   "swamp": {

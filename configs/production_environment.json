@@ -1,0 +1,38 @@
+{
+  "baseline": "M0",
+  "isaac_sim": {
+    "version": "6.0.1-rc.7+release.42383.32955d8d.gl",
+    "physx_extension_version": "110.1.13",
+    "launcher_environment": "ISAAC_PYTHON"
+  },
+  "blender": {
+    "version": "5.0.1",
+    "launcher_environment": "BLENDER_BIN",
+    "render_engine": "CYCLES",
+    "validated_device": "OPTIX",
+    "cycles_samples": 16,
+    "resolution": [640, 640]
+  },
+  "ffmpeg": {
+    "version_build": "2025-10-27-git-68152978b5",
+    "launcher_environment": "FFMPEG_BIN",
+    "video_codec": "libx264",
+    "pixel_format": "yuv420p",
+    "crf": 18
+  },
+  "timing": {
+    "physics_frames": 300,
+    "physics_substeps_per_frame": 4,
+    "animation_cache_fps": 60,
+    "video_fps": 60
+  },
+  "validated_windows_gpu": {
+    "name": "NVIDIA GeForce RTX 5070 Ti Laptop GPU",
+    "driver_version_windows": "32.0.16.1062"
+  },
+  "notes": [
+    "The Linux server must use the same Isaac Sim and Blender major/minor versions for M0 reproducibility.",
+    "GPU model and OS driver packaging may differ, but the resolved Cycles device and all software versions must be recorded in run reports.",
+    "This file records production software and numerical settings, not real-world material calibration."
+  ]
+}

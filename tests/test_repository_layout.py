@@ -4,6 +4,8 @@ import json
 import unittest
 from pathlib import Path
 
+from experiments.model_material.generate_multi_object_config import generate
+
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -46,8 +48,19 @@ class RepositoryLayoutTests(unittest.TestCase):
             )
         )
         experiments = config["experiments"]
+        collision_policies = config["rigid_collision_policies"]
 
         self.assertIsInstance(config.get("seed"), int)
+        self.assertEqual(
+            set(collision_policies), set(config["simulation_model_pool"])
+        )
+        for model, policy in collision_policies.items():
+            with self.subTest(collision_model=model):
+                self.assertIn(
+                    policy["approximation"], {"convexDecomposition", "sdf"}
+                )
+                if policy["approximation"] == "sdf":
+                    self.assertGreater(policy["sdf_resolution"], 1)
         self.assertEqual(len(experiments), 14)
         self.assertEqual({row["scene"] for row in experiments}, set(scenes))
         self.assertEqual(len({row["scene"] for row in experiments}), len(experiments))
@@ -62,6 +75,26 @@ class RepositoryLayoutTests(unittest.TestCase):
                 self.assertEqual(
                     sorted(body["drop_offset"] for body in bodies), [0.0, 0.72, 1.44]
                 )
+
+    def test_checked_in_multi_object_config_is_reproducible(self):
+        config = json.loads(
+            (ROOT / "configs/multi_object_scene_experiments.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        self.assertEqual(config, generate(config["seed"]))
+
+    def test_m0_environment_is_versioned(self):
+        environment = json.loads(
+            (ROOT / "configs/production_environment.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        self.assertEqual(environment["baseline"], "M0")
+        self.assertTrue(environment["isaac_sim"]["version"].startswith("6.0.1"))
+        self.assertEqual(environment["blender"]["version"], "5.0.1")
+        self.assertEqual(environment["timing"]["physics_frames"], 300)
+        self.assertEqual(environment["timing"]["animation_cache_fps"], 60)
 
 
 if __name__ == "__main__":

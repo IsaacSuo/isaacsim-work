@@ -51,6 +51,34 @@ SIMULATION_MODEL_POOL = (
     "tree_1.stl",
 )
 
+# Dynamic rigid bodies use SDF only when their thin, branched, or deeply
+# concave geometry is poorly represented by convex decomposition. Deformable
+# instances ignore this table and retain their tetrahedral collision meshes.
+RIGID_COLLISION_POLICIES = {
+    "banana.stl": {"approximation": "convexDecomposition"},
+    "bear.stl": {"approximation": "convexDecomposition"},
+    "bird.stl": {"approximation": "sdf", "sdf_resolution": 384},
+    "cap.stl": {"approximation": "sdf", "sdf_resolution": 384},
+    "carrot.stl": {"approximation": "sdf", "sdf_resolution": 384},
+    "cat.stl": {"approximation": "convexDecomposition"},
+    "chair.stl": {"approximation": "sdf", "sdf_resolution": 512},
+    "coral.stl": {
+        "approximation": "sdf",
+        "sdf_resolution": 512,
+        "sdf_enable_remeshing": True,
+    },
+    "elephant.stl": {"approximation": "sdf", "sdf_resolution": 384},
+    "elephant_1.stl": {"approximation": "sdf", "sdf_resolution": 384},
+    "elephant_2.stl": {"approximation": "sdf", "sdf_resolution": 384},
+    "fish.stl": {"approximation": "sdf", "sdf_resolution": 384},
+    "fish_1.stl": {"approximation": "sdf", "sdf_resolution": 384},
+    "heart.stl": {"approximation": "convexDecomposition"},
+    "rabbit.stl": {"approximation": "sdf", "sdf_resolution": 384},
+    "statue.stl": {"approximation": "sdf", "sdf_resolution": 384},
+    "tree.stl": {"approximation": "sdf", "sdf_resolution": 512},
+    "tree_1.stl": {"approximation": "sdf", "sdf_resolution": 512},
+}
+
 MATERIAL_SLOTS = (
     ("silicone_cloudy", ("silicone_soft", "silicone_firm")),
     ("rough_white", ("hard_white",)),
@@ -62,6 +90,42 @@ DROP_LAYOUT = (
     {"offset_x": 0.05, "offset_z": -0.04, "drop_offset": 0.72},
     {"offset_x": 0.0, "offset_z": 0.05, "drop_offset": 1.44},
 )
+
+# The production seed was visually and physically validated scene by scene.
+# Keep those fixes in the generator so regenerating the checked-in JSON cannot
+# silently restore an earlier model choice, unsafe spacing, or collision shell.
+PRODUCTION_SEED = 20260820
+CURATED_PRODUCTION_OVERRIDES = {
+    "alley": {
+        0: {
+            "model": "bear.stl",
+            "collision_contact_offset": 0.12,
+            "collision_rest_offset": 0.10,
+        },
+    },
+    "apartment": {
+        0: {
+            "collision_contact_offset": 0.12,
+            "collision_rest_offset": 0.10,
+        },
+    },
+    "classroom": {
+        0: {"offset_x": -0.16, "collision_contact_offset": 0.08},
+        1: {
+            "offset_x": 0.16,
+            "offset_z": -0.10,
+            "collision_contact_offset": 0.05,
+        },
+        2: {"offset_z": 0.18, "collision_contact_offset": 0.05},
+    },
+    "elevator": {1: {"offset_x": 0.35}},
+    "warehouse": {
+        0: {
+            "collision_contact_offset": 0.12,
+            "collision_rest_offset": 0.10,
+        },
+    },
+}
 
 
 def parse_args():
@@ -110,11 +174,17 @@ def generate(seed: int):
                 "bodies": bodies,
             }
         )
+    if seed == PRODUCTION_SEED:
+        for experiment in experiments:
+            scene_overrides = CURATED_PRODUCTION_OVERRIDES.get(experiment["scene"], {})
+            for body_index, body_overrides in scene_overrides.items():
+                experiment["bodies"][body_index].update(body_overrides)
     return {
         "seed": seed,
         "selection_policy": "shuffled_deck_without_replacement_within_scene",
         "interbody_collision_layout": "three_near_coaxial_staggered_drops",
         "simulation_model_pool": list(SIMULATION_MODEL_POOL),
+        "rigid_collision_policies": RIGID_COLLISION_POLICIES,
         "experiments": experiments,
     }
 

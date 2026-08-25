@@ -201,6 +201,21 @@ def tune_authored_emissive_lights(scene_name):
     return {"applied": bool(adjusted), "materials": adjusted}
 
 
+def configure_scene_exposure(scene, scene_name):
+    """Apply camera-like exposure compensation without changing scene lighting."""
+    exposure_by_scene = {
+        "elevator": 1.5,
+    }
+    previous_exposure = float(scene.view_settings.exposure)
+    exposure = exposure_by_scene.get(scene_name, previous_exposure)
+    scene.view_settings.exposure = exposure
+    return {
+        "applied": not math.isclose(exposure, previous_exposure),
+        "previous_ev": previous_exposure,
+        "exposure_ev": float(scene.view_settings.exposure),
+    }
+
+
 def configure_scene_shadow_key(scene, scene_name):
     """Restore a readable soft direct-light shadow for scenes with no usable authored key light.
 
@@ -630,6 +645,7 @@ hdri_shadow_access = {"applied": False, "policy": "not_used_for_apartment"}
 world_lighting = configure_workspace_hdri(scene, scene_name)
 authored_light_tuning = tune_authored_scene_lights(scene, scene_name)
 authored_emissive_tuning = tune_authored_emissive_lights(scene_name)
+scene_exposure = configure_scene_exposure(scene, scene_name)
 shadow_key = configure_scene_shadow_key(scene, scene_name)
 baked_shadow_overlay = configure_apartment_baked_shadow_overlay(scene, soft_bodies)
 apartment_authored_sun = configure_apartment_authored_sun(scene, before_objects, soft_bodies)
@@ -802,6 +818,7 @@ report = {
     "world_lighting": world_lighting,
     "authored_light_tuning": authored_light_tuning,
     "authored_emissive_tuning": authored_emissive_tuning,
+    "scene_exposure": scene_exposure,
     "shadow_key": shadow_key,
     "baked_shadow_overlay": baked_shadow_overlay,
     "apartment_authored_sun": apartment_authored_sun,

@@ -22,6 +22,26 @@
     "tree.stl",
     "tree_1.stl"
   ],
+  "rigid_collision_policies": {
+    "banana.stl": {"approximation": "convexDecomposition"},
+    "bear.stl": {"approximation": "convexDecomposition"},
+    "bird.stl": {"approximation": "sdf", "sdf_resolution": 384},
+    "cap.stl": {"approximation": "sdf", "sdf_resolution": 384},
+    "carrot.stl": {"approximation": "sdf", "sdf_resolution": 384},
+    "cat.stl": {"approximation": "convexDecomposition"},
+    "chair.stl": {"approximation": "sdf", "sdf_resolution": 512},
+    "coral.stl": {"approximation": "sdf", "sdf_resolution": 512, "sdf_enable_remeshing": true},
+    "elephant.stl": {"approximation": "sdf", "sdf_resolution": 384},
+    "elephant_1.stl": {"approximation": "sdf", "sdf_resolution": 384},
+    "elephant_2.stl": {"approximation": "sdf", "sdf_resolution": 384},
+    "fish.stl": {"approximation": "sdf", "sdf_resolution": 384},
+    "fish_1.stl": {"approximation": "sdf", "sdf_resolution": 384},
+    "heart.stl": {"approximation": "convexDecomposition"},
+    "rabbit.stl": {"approximation": "sdf", "sdf_resolution": 384},
+    "statue.stl": {"approximation": "sdf", "sdf_resolution": 384},
+    "tree.stl": {"approximation": "sdf", "sdf_resolution": 512},
+    "tree_1.stl": {"approximation": "sdf", "sdf_resolution": 512}
+  },
   "experiments": [
     {
       "id": "alley_random_mixed_collision",
@@ -204,24 +224,24 @@
           "model": "cat.stl",
           "model_height": 0.589,
           "model_yaw": 38.8,
-          "offset_x": -0.06,
+          "offset_x": -0.16,
           "offset_z": 0.03,
           "drop_offset": 0.0,
           "physics_profile": "silicone_soft",
           "material_preset": "silicone_cloudy",
-          "collision_contact_offset": 0.03,
+          "collision_contact_offset": 0.08,
           "collision_rest_offset": 0.01
         },
         {
           "model": "fish_1.stl",
           "model_height": 0.599,
           "model_yaw": 2.5,
-          "offset_x": 0.05,
-          "offset_z": -0.04,
+          "offset_x": 0.16,
+          "offset_z": -0.1,
           "drop_offset": 0.72,
           "physics_profile": "hard_white",
           "material_preset": "rough_white",
-          "collision_contact_offset": 0.03,
+          "collision_contact_offset": 0.05,
           "collision_rest_offset": 0.01
         },
         {
@@ -229,11 +249,11 @@
           "model_height": 0.537,
           "model_yaw": 5.3,
           "offset_x": 0.0,
-          "offset_z": 0.05,
+          "offset_z": 0.18,
           "drop_offset": 1.44,
           "physics_profile": "hard_metal",
           "material_preset": "brushed_metal",
-          "collision_contact_offset": 0.03,
+          "collision_contact_offset": 0.05,
           "collision_rest_offset": 0.01
         }
       ]

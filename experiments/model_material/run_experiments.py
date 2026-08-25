@@ -177,6 +177,7 @@ def ensure_collision_asset(output_root, scene):
     if len(bounds) != 6:
         raise ValueError(f"Scene requires six local collision bounds: {scene_name}")
     source_stage = scene["usd"].resolve()
+    environment_prim = scene["config"].get("collision_environment_prim", "/World/Environment")
     if collision_asset.is_file() and collision_asset.stat().st_size > 0 and collision_report.is_file():
         metadata = json.loads(collision_report.read_text(encoding="utf-8"))
         saved_bounds = metadata.get("bounds") or []
@@ -192,6 +193,7 @@ def ensure_collision_asset(output_root, scene):
                     for saved, expected in zip(saved_bounds, bounds))
             and metadata.get("triangles", 0) > 0
             and metadata.get("winding_policy") == "non_vertical_triangles_face_positive_y_v1"
+            and metadata.get("environment_prim") == environment_prim
         ):
             return collision_asset
     completed = subprocess.run(
@@ -199,7 +201,7 @@ def ensure_collision_asset(output_root, scene):
             str(ISAAC_PYTHON), str(COLLISION_EXTRACTOR),
             str(source_stage), str(collision_asset),
             "--bounds", *[str(value) for value in bounds],
-            "--environment-prim", scene["config"].get("collision_environment_prim", "/World/Environment"),
+            "--environment-prim", environment_prim,
         ],
         cwd=ROOT,
         check=False,

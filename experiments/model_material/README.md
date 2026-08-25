@@ -45,3 +45,6 @@ Y:\isaacsim\python.bat experiments\model_material\run_multi_object_videos.py --s
 ```
 
 输出位于 `output/multi_object_mixed_material_14/`。每个缓存都会核对模型、材质、物理档位、逐物体碰撞偏移、精确场景碰撞资产以及互碰结果，参数不匹配时不会错误复用旧缓存。
+
+冻结 benchmark 基础设施前的 M0 production baseline、严格验收条件和最终审计命令见
+[`docs/M0_PRODUCTION_BASELINE.md`](../../docs/M0_PRODUCTION_BASELINE.md)。M0 不会把“USD 缓存可读但 PhysX 报告无效”视为成功。
