@@ -116,14 +116,33 @@ CURATED_PRODUCTION_OVERRIDES = {
             "collision_rest_offset": 0.10,
         },
     },
+    # Keep the rigid chair and branched tree on glancing trajectories instead
+    # of dropping their centers almost coaxially. The soft fish still arrives
+    # last and participates in the same three-body interaction.
+    "bedroom": {
+        0: {"offset_x": -0.18},
+        1: {"offset_x": 0.18, "offset_z": -0.08},
+        2: {"offset_z": 0.16},
+    },
+    # The deformable body arrives last in these compact stacks. This avoids a
+    # high-speed rigid body pinning it between two collision surfaces while
+    # preserving three different models, materials, and mutual collisions.
+    "city": {
+        1: {"offset_x": 0.22, "offset_z": -0.10, "drop_offset": 1.44},
+        2: {"offset_x": -0.10, "offset_z": 0.12, "drop_offset": 0.72},
+    },
     "classroom": {
         0: {"offset_x": -0.16, "collision_contact_offset": 0.08},
         1: {
-            "offset_x": 0.16,
+            "offset_x": 0.26,
             "offset_z": -0.10,
             "collision_contact_offset": 0.05,
         },
-        2: {"offset_z": 0.18, "collision_contact_offset": 0.05},
+        2: {
+            "offset_x": 0.05,
+            "offset_z": 0.28,
+            "collision_contact_offset": 0.05,
+        },
     },
     "elevator": {1: {"offset_x": 0.35}},
     "garage": {
@@ -148,6 +167,14 @@ CURATED_PRODUCTION_OVERRIDES = {
             "offset_z": 0.12,
             "collision_contact_offset": 0.05,
         },
+    },
+    "graffiti_warehouse": {
+        1: {"drop_offset": 1.44},
+        2: {"drop_offset": 0.72},
+    },
+    "swamp": {
+        1: {"drop_offset": 1.44},
+        2: {"drop_offset": 0.72},
     },
     "warehouse": {
         0: {

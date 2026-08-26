@@ -93,6 +93,26 @@ class RepositoryLayoutTests(unittest.TestCase):
         mountain = next(row for row in experiments if row["scene"] == "mountain")
         self.assertEqual(mountain["physics_substeps"], 8)
         self.assertEqual(mountain["deformable_resolution"], 16)
+        bedroom = next(row for row in experiments if row["scene"] == "bedroom")
+        self.assertEqual(
+            [body["offset_x"] for body in bedroom["bodies"]],
+            [-0.18, 0.18, 0.0],
+        )
+        classroom = next(row for row in experiments if row["scene"] == "classroom")
+        self.assertEqual(
+            [body["offset_x"] for body in classroom["bodies"]],
+            [-0.16, 0.26, 0.05],
+        )
+        for scene_name in ("city", "graffiti_warehouse", "swamp"):
+            experiment = next(
+                row for row in experiments if row["scene"] == scene_name
+            )
+            deformable = next(
+                body
+                for body in experiment["bodies"]
+                if body["material_preset"] == "silicone_cloudy"
+            )
+            self.assertEqual(deformable["drop_offset"], 1.44)
         for experiment in experiments:
             with self.subTest(scene=experiment["scene"]):
                 bodies = experiment["bodies"]
