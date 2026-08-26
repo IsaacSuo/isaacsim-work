@@ -20,7 +20,11 @@ python tools/physx/run_penetration_audit.py `
   --debug-report output/run/run_complete.json
 ```
 
-默认阈值严格：穿透 1 mm、反转 Tet 0 个、非流形边 0 条。可用
+默认阈值严格：穿透 1 mm、simulation Tet 反转 0 个、真实外壳非流形边
+0 条。拓扑结论来自导出时记录的完整四面体连接，而不是 Blender 导入后的表面
+三角网格；Tet 面出现两次表示正常内部共享面，会先成对剔除。collision Tet 的
+bind 映射不用于反转结论。旧报告若没有完整连接记录，会标为不可审核，而不会
+报告成物理非流形。可用
 `--support-y` 增加支撑平面审核。JSON 是主要结果，包含 `valid`、`passed`、
 各层检查和失败列表。当前算法要求两表面发生精确交叉，不检查“闭合物体完全
 包含另一闭合物体但表面没有交叉”的极端情形；报告会明确记录该限制。

@@ -12,7 +12,6 @@ wrapper when stable 0/1/2 batch exit codes are required.
 from __future__ import annotations
 
 import argparse
-from collections import Counter
 import json
 import re
 import sys
@@ -31,6 +30,7 @@ from soft_body.penetration import (  # noqa: E402
     exact_triangle_crossings,
     penetration_exceeds_tolerance,
 )
+from soft_body.tet_quality import compute_tet_surface_topology  # noqa: E402
 
 
 BODY_NAME = re.compile(
@@ -78,22 +78,6 @@ def mesh_arrays(obj):
         raise ValueError(f"Audit mesh has no usable surface: {obj.name}")
     referenced = np.unique(triangles.reshape(-1))
     return points, triangles, referenced
-
-
-def mesh_topology(triangles):
-    edge_counts = Counter()
-    for triangle in triangles:
-        first, second, third = (int(value) for value in triangle)
-        for edge in ((first, second), (second, third), (third, first)):
-            edge_counts[tuple(sorted(edge))] += 1
-    boundary = sum(count == 1 for count in edge_counts.values())
-    over_shared = sum(count > 2 for count in edge_counts.values())
-    return {
-        "edge_count": len(edge_counts),
-        "boundary_edges": int(boundary),
-        "edges_with_more_than_two_faces": int(over_shared),
-        "non_manifold_edges": int(boundary + over_shared),
-    }
 
 
 def make_bvh(points, triangles, *, epsilon=1.0e-7):
@@ -183,6 +167,44 @@ def load_tet_checks(debug_report_path, maximum_inverted):
         quality = mesh.get("tet_quality")
         if quality is None:
             continue
+        mesh_name = str(mesh.get("name") or "")
+        if "CollisionTetSurface" in mesh_name:
+            checks.append(
+                {
+                    "mesh": mesh_name,
+                    "tetrahedron_count": int(
+                        quality.get("tetrahedron_count", 0)
+                    ),
+                    "applicable": False,
+                    "available": False,
+                    "reason": "collision_tet_bind_mapping_not_used_for_inversion",
+                    "passed": True,
+                }
+            )
+            continue
+        bind_mapping = quality.get("bind_mapping")
+        mapping_trusted = (
+            bool(bind_mapping.get("trusted"))
+            if isinstance(bind_mapping, dict)
+            else "SimulationTetSurface" in mesh_name
+        )
+        if not mapping_trusted:
+            checks.append(
+                {
+                    "mesh": mesh_name,
+                    "tetrahedron_count": int(
+                        quality.get("tetrahedron_count", 0)
+                    ),
+                    "applicable": True,
+                    "available": False,
+                    "reason": (bind_mapping or {}).get(
+                        "reason", "simulation_tet_bind_mapping_untrusted"
+                    ),
+                    "maximum_allowed_inverted_tets": int(maximum_inverted),
+                    "passed": False,
+                }
+            )
+            continue
         inverted = int(quality.get("inverted_from_bind_pose_count", 0))
         minimum_ratio = quality.get("minimum_signed_volume_ratio_to_bind")
         passed = inverted <= maximum_inverted and (
@@ -192,6 +214,12 @@ def load_tet_checks(debug_report_path, maximum_inverted):
             {
                 "mesh": mesh.get("name"),
                 "tetrahedron_count": int(quality.get("tetrahedron_count", 0)),
+                "applicable": True,
+                "available": True,
+                "bind_mapping_source": (
+                    (bind_mapping or {}).get("source")
+                    or "legacy_simulation_tet_deformable_pose"
+                ),
                 "inverted_from_bind_pose_count": inverted,
                 "minimum_signed_volume_ratio_to_bind": minimum_ratio,
                 "maximum_allowed_inverted_tets": int(maximum_inverted),
@@ -208,6 +236,61 @@ def load_tet_checks(debug_report_path, maximum_inverted):
             }
         )
     return payload, checks
+
+
+def load_tet_topology_checks(payload, maximum_non_manifold):
+    checks = []
+    for mesh in payload.get("meshes") or []:
+        mesh_name = str(mesh.get("name") or "")
+        if not (
+            "CollisionTetSurface" in mesh_name
+            or "SimulationTetSurface" in mesh_name
+        ):
+            continue
+        topology = mesh.get("tet_volume_topology")
+        if not isinstance(topology, dict):
+            checks.append(
+                {
+                    "mesh": mesh_name,
+                    "available": False,
+                    "reason": "tet_volume_connectivity_not_recorded",
+                    "passed": False,
+                }
+            )
+            continue
+        non_manifold_edges = int(
+            topology.get("non_manifold_boundary_edges", 0)
+        )
+        non_manifold_faces = int(
+            topology.get("faces_with_more_than_two_incident_tets", 0)
+        )
+        checks.append(
+            {
+                "mesh": mesh_name,
+                "available": True,
+                **topology,
+                "maximum_allowed_non_manifold_boundary_edges": int(
+                    maximum_non_manifold
+                ),
+                "maximum_allowed_faces_with_more_than_two_incident_tets": int(
+                    maximum_non_manifold
+                ),
+                "passed": bool(
+                    non_manifold_edges <= maximum_non_manifold
+                    and non_manifold_faces <= maximum_non_manifold
+                ),
+            }
+        )
+    if not checks:
+        checks.append(
+            {
+                "mesh": "TetVolumeTopologyRecords",
+                "available": False,
+                "reason": "tet_volume_connectivity_not_recorded",
+                "passed": False,
+            }
+        )
+    return checks
 
 
 def main():
@@ -290,23 +373,28 @@ def main():
                         )
                     )
 
-    topology_checks = []
-    for (index, layer), (_, triangles, _) in sorted(arrays.items()):
+    surface_topology_diagnostics = []
+    for (index, layer), (points, triangles, _) in sorted(arrays.items()):
         if layer == "Visual":
             continue
-        topology = mesh_topology(triangles)
-        passed = topology["non_manifold_edges"] <= args.max_non_manifold_edges
-        topology_checks.append(
+        topology = compute_tet_surface_topology(triangles, points=points)
+        surface_topology_diagnostics.append(
             {
                 "mesh": f"Body_{index:02d}_{layer}",
                 **topology,
-                "maximum_allowed_non_manifold_edges": args.max_non_manifold_edges,
-                "passed": bool(passed),
+                "authoritative": False,
+                "note": (
+                    "Imported surface triangles cannot distinguish every "
+                    "internal Tet face; pass/fail uses recorded volume connectivity."
+                ),
             }
         )
 
     debug_payload, tet_checks = load_tet_checks(
         debug_report, args.max_inverted_tets
+    )
+    topology_checks = load_tet_topology_checks(
+        debug_payload, args.max_non_manifold_edges
     )
     ground_checks = []
     if args.support_y is not None:
@@ -337,17 +425,25 @@ def main():
             if not check["passed"]:
                 failures.append(
                     {
-                        "category": category,
+                        "category": (
+                            "audit_data_unavailable"
+                            if check.get("available") is False
+                            else category
+                        ),
                         "subject": check.get("mesh")
                         or check.get("body")
                         or f"{check.get('first')} vs {check.get('second')}",
                     }
                 )
 
+    audit_data_available = not any(
+        failure["category"] == "audit_data_unavailable" for failure in failures
+    )
+
     result = {
-        "schema_version": 1,
-        "valid": True,
-        "passed": not failures,
+        "schema_version": 2,
+        "valid": audit_data_available,
+        "passed": audit_data_available and not failures,
         "debug_usd": str(debug_usd),
         "debug_report": str(debug_report),
         "frame": debug_payload.get("frame"),
@@ -363,13 +459,14 @@ def main():
         "surface_checks": surface_checks,
         "tet_checks": tet_checks,
         "topology_checks": topology_checks,
+        "surface_topology_diagnostics": surface_topology_diagnostics,
         "ground_checks": ground_checks,
         "failures": failures,
     }
     output_json.parent.mkdir(parents=True, exist_ok=True)
     output_json.write_text(json.dumps(result, indent=2), encoding="utf-8")
     print(
-        f"[penetration-audit] passed={result['passed']} "
+        f"[penetration-audit] valid={result['valid']} passed={result['passed']} "
         f"frame={result['frame']} failures={len(failures)} report={output_json}",
         flush=True,
     )
@@ -384,7 +481,7 @@ if __name__ == "__main__":
         if len(raw) >= 2:
             failure_path = Path(raw[1]).resolve()
             failure = {
-                "schema_version": 1,
+                "schema_version": 2,
                 "valid": False,
                 "passed": False,
                 "error": {
@@ -403,4 +500,4 @@ if __name__ == "__main__":
             )
         raise
     if exit_code:
-        raise RuntimeError("Penetration audit completed with physical failures")
+        raise RuntimeError("Penetration audit did not pass")

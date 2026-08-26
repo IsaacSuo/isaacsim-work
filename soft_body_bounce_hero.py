@@ -489,7 +489,12 @@ import omni.kit.app
 import omni.usd
 from soft_body.config import normalize_body_specs
 from soft_body.geometry import TriangleBoxCropper
-from soft_body.tet_quality import compute_tet_deformation, compute_tet_quality
+from soft_body.tet_quality import (
+    compute_tet_deformation,
+    compute_tet_quality,
+    compute_tet_surface_topology,
+    compute_tet_volume_topology,
+)
 from omni.kit.viewport.utility import capture_viewport_to_file, get_active_viewport
 from omni.kit.material.library import CreateAndBindMdlMaterialFromLibrary
 from omni.physx import get_physx_simulation_interface
@@ -1557,7 +1562,7 @@ def export_deformable_debug_usd(stage, bodies, frame, output_path):
             "triangle_count": int(len(indices)),
         }
 
-    def tet_quality(tet_mesh):
+    def tet_quality(tet_mesh, *, allow_bind_mapping):
         points = np.asarray(tet_mesh.GetPointsAttr().Get() or [], dtype=np.float64)
         indices = np.asarray(
             tet_mesh.GetTetVertexIndicesAttr().Get() or [], dtype=np.int64
@@ -1568,11 +1573,36 @@ def export_deformable_debug_usd(stage, bodies, frame, output_path):
             "deformablePose:default:omniphysics:points"
         )
         bind_points = np.asarray(bind_attr.Get() or [], dtype=np.float64) if bind_attr else np.empty((0, 3))
-        return compute_tet_quality(
+        quality = compute_tet_quality(
             points,
             indices,
-            bind_points=bind_points if len(bind_points) == len(points) else None,
+            bind_points=(
+                bind_points
+                if allow_bind_mapping and len(bind_points) == len(points)
+                else None
+            ),
         )
+        quality["bind_mapping"] = {
+            "applicable": bool(allow_bind_mapping),
+            "trusted": bool(
+                allow_bind_mapping and len(bind_points) == len(points)
+            ),
+            "source": (
+                "simulation_tet_deformable_pose"
+                if allow_bind_mapping
+                else None
+            ),
+            "reason": (
+                None
+                if allow_bind_mapping and len(bind_points) == len(points)
+                else (
+                    "simulation_bind_point_count_mismatch"
+                    if allow_bind_mapping
+                    else "collision_tet_bind_mapping_not_used_for_inversion"
+                )
+            ),
+        }
+        return quality
 
     for body in bodies:
         index = int(body["index"])
@@ -1613,7 +1643,22 @@ def export_deformable_debug_usd(stage, bodies, frame, output_path):
             surface_report = define_surface(
                 f"Body_{index:02d}_{label}", world_points, surface_faces, color
             )
-            surface_report["tet_quality"] = tet_quality(tet_mesh)
+            surface_report["tet_quality"] = tet_quality(
+                tet_mesh,
+                allow_bind_mapping=label == "SimulationTetSurface",
+            )
+            surface_report["tet_surface_topology"] = (
+                compute_tet_surface_topology(
+                    surface_faces,
+                    points=local_points,
+                )
+            )
+            tet_indices = np.asarray(
+                tet_mesh.GetTetVertexIndicesAttr().Get() or [], dtype=np.int64
+            ).reshape(-1, 4)
+            surface_report["tet_volume_topology"] = compute_tet_volume_topology(
+                tet_indices,
+            )
             exported.append(surface_report)
 
     debug_stage.GetRootLayer().Save()

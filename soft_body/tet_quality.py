@@ -2,11 +2,127 @@
 
 from __future__ import annotations
 
+from collections import Counter
+
 import numpy as np
 
 
 EDGE_PAIRS = ((0, 1), (0, 2), (0, 3), (1, 2), (1, 3), (2, 3))
 FACE_TRIPLES = ((1, 2, 3), (0, 2, 3), (0, 1, 3), (0, 1, 2))
+
+
+def compute_tet_surface_topology(
+    face_indices,
+    *,
+    points=None,
+    weld_tolerance: float = 1.0e-7,
+) -> dict:
+    """Classify a Tet face soup before checking its true boundary shell.
+
+    A face occurring twice is shared by two tetrahedra and is internal, not a
+    non-manifold part of the outer surface. Only faces occurring once form the
+    boundary shell. More than two incident tetrahedra is a volume-topology
+    failure in its own right.
+    """
+    triangles = np.asarray(face_indices, dtype=np.int64).reshape(-1, 3)
+    if weld_tolerance <= 0.0:
+        raise ValueError("Tet topology weld tolerance must be positive")
+    input_vertex_count = 0
+    welded_vertex_count = 0
+    if points is not None:
+        vertices = np.asarray(points, dtype=np.float64)
+        if vertices.ndim != 2 or vertices.shape[1] != 3:
+            raise ValueError("Tet topology points must have shape (N, 3)")
+        input_vertex_count = int(len(vertices))
+        if len(triangles) and (
+            triangles.min() < 0 or triangles.max() >= len(vertices)
+        ):
+            raise ValueError("Tet surface indices reference points outside the array")
+        welded = {}
+        remap = np.empty(len(vertices), dtype=np.int64)
+        for index, point in enumerate(vertices):
+            key = tuple(
+                int(round(float(value) / weld_tolerance)) for value in point
+            )
+            remap[index] = welded.setdefault(key, len(welded))
+        triangles = remap[triangles]
+        welded_vertex_count = int(len(welded))
+    if not len(triangles):
+        return {
+            "input_triangle_count": 0,
+            "input_vertex_count": input_vertex_count,
+            "welded_vertex_count": welded_vertex_count,
+            "weld_tolerance_m": float(weld_tolerance),
+            "unique_tet_face_count": 0,
+            "boundary_triangle_count": 0,
+            "internal_shared_face_count": 0,
+            "faces_with_more_than_two_incident_tets": 0,
+            "boundary_edge_count": 0,
+            "open_boundary_edges": 0,
+            "boundary_edges_with_more_than_two_faces": 0,
+            "non_manifold_boundary_edges": 0,
+        }
+
+    face_counts = Counter(
+        tuple(sorted(int(value) for value in triangle)) for triangle in triangles
+    )
+    boundary_faces = [face for face, count in face_counts.items() if count == 1]
+    edge_counts = Counter()
+    for first, second, third in boundary_faces:
+        for edge in ((first, second), (second, third), (third, first)):
+            edge_counts[tuple(sorted(edge))] += 1
+    open_edges = sum(count == 1 for count in edge_counts.values())
+    over_shared_edges = sum(count > 2 for count in edge_counts.values())
+    return {
+        "input_triangle_count": int(len(triangles)),
+        "input_vertex_count": input_vertex_count,
+        "welded_vertex_count": welded_vertex_count,
+        "weld_tolerance_m": float(weld_tolerance),
+        "unique_tet_face_count": int(len(face_counts)),
+        "boundary_triangle_count": int(len(boundary_faces)),
+        "internal_shared_face_count": int(
+            sum(count == 2 for count in face_counts.values())
+        ),
+        "faces_with_more_than_two_incident_tets": int(
+            sum(count > 2 for count in face_counts.values())
+        ),
+        "boundary_edge_count": int(len(edge_counts)),
+        "open_boundary_edges": int(open_edges),
+        "boundary_edges_with_more_than_two_faces": int(over_shared_edges),
+        "non_manifold_boundary_edges": int(open_edges + over_shared_edges),
+    }
+
+
+def compute_tet_volume_topology(
+    tet_indices,
+    *,
+    points=None,
+    weld_tolerance: float = 1.0e-7,
+) -> dict:
+    """Extract and audit the boundary of a tetrahedral volume connectivity.
+
+    Production callers should use connectivity IDs directly and leave
+    ``points`` unset. Coordinate welding is available only for explicitly
+    disconnected diagnostic inputs; deformed vertices that happen to coincide
+    must not change the authored volume topology.
+    """
+    tetrahedra = np.asarray(tet_indices, dtype=np.int64).reshape(-1, 4)
+    if not len(tetrahedra):
+        topology = compute_tet_surface_topology(
+            (), points=points, weld_tolerance=weld_tolerance
+        )
+        topology["tetrahedron_count"] = 0
+        return topology
+    faces = np.concatenate(
+        [tetrahedra[:, face] for face in FACE_TRIPLES], axis=0
+    )
+    topology = compute_tet_surface_topology(
+        faces,
+        points=points,
+        weld_tolerance=weld_tolerance,
+    )
+    topology["tetrahedron_count"] = int(len(tetrahedra))
+    return topology
 
 
 def signed_tetrahedron_volumes(points, indices) -> np.ndarray:

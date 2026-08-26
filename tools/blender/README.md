@@ -14,3 +14,8 @@
 表示通过，进程 1 表示样本不合格或工具错误，以 JSON 的 `valid` 字段区分。
 批处理建议调用 `tools/physx/run_penetration_audit.py`，它提供稳定的 0/1/2
 退出码。
+
+审核 JSON schema 2 将 Tet 拓扑与导入表面诊断分开：正式拓扑结论只读取仿真
+导出时保存的完整四面体连接；Blender 表面网格的边计数仅作非权威诊断。
+collision Tet 不使用 bind 映射判断反转，反转项只审核 simulation Tet。缺少
+完整连接的旧调试报告返回 `valid=false`，不会被误报成物理非流形。
