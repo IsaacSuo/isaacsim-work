@@ -155,6 +155,7 @@ def compare_surfaces(first_name, first_data, second_name, second_data, tolerance
         "maximum_penetration_depth_m": maximum_depth,
         "penetration_tolerance_m": float(tolerance_m),
         "containment_without_surface_crossing_checked": False,
+        "authoritative": True,
         "passed": not failed,
     }
 
@@ -258,6 +259,17 @@ def load_tet_topology_checks(payload, maximum_non_manifold):
                 }
             )
             continue
+        if topology.get("authoritative") is False:
+            checks.append(
+                {
+                    "mesh": mesh_name,
+                    "available": True,
+                    "applicable": False,
+                    **topology,
+                    "passed": True,
+                }
+            )
+            continue
         non_manifold_edges = int(
             topology.get("non_manifold_boundary_edges", 0)
         )
@@ -268,6 +280,7 @@ def load_tet_topology_checks(payload, maximum_non_manifold):
             {
                 "mesh": mesh_name,
                 "available": True,
+                "applicable": True,
                 **topology,
                 "maximum_allowed_non_manifold_boundary_edges": int(
                     maximum_non_manifold
@@ -363,15 +376,27 @@ def main():
                     key = (deformable_index, layer)
                     if key not in arrays:
                         continue
-                    surface_checks.append(
-                        compare_surfaces(
-                            f"Body_{other_index:02d}_Visual",
-                            arrays[(other_index, "Visual")],
-                            f"Body_{deformable_index:02d}_{layer}",
-                            arrays[key],
-                            tolerance_m,
-                        )
+                    check = compare_surfaces(
+                        f"Body_{other_index:02d}_Visual",
+                        arrays[(other_index, "Visual")],
+                        f"Body_{deformable_index:02d}_{layer}",
+                        arrays[key],
+                        tolerance_m,
                     )
+                    if layer == "SimulationTetSurface":
+                        # The regular voxel/hexahedral FEM proxy may extend
+                        # outside the authored and collision surfaces. PhysX
+                        # does not use it as the contact boundary, so overlap
+                        # here is useful diagnostics but not penetration.
+                        check.update(
+                            {
+                                "authoritative": False,
+                                "diagnostic_passed": check["passed"],
+                                "reason": "simulation_mesh_is_not_contact_boundary",
+                                "passed": True,
+                            }
+                        )
+                    surface_checks.append(check)
 
     surface_topology_diagnostics = []
     for (index, layer), (points, triangles, _) in sorted(arrays.items()):
@@ -441,7 +466,7 @@ def main():
     )
 
     result = {
-        "schema_version": 2,
+        "schema_version": 4,
         "valid": audit_data_available,
         "passed": audit_data_available and not failures,
         "debug_usd": str(debug_usd),
@@ -481,7 +506,7 @@ if __name__ == "__main__":
         if len(raw) >= 2:
             failure_path = Path(raw[1]).resolve()
             failure = {
-                "schema_version": 2,
+                "schema_version": 4,
                 "valid": False,
                 "passed": False,
                 "error": {

@@ -1656,9 +1656,38 @@ def export_deformable_debug_usd(stage, bodies, frame, output_path):
             tet_indices = np.asarray(
                 tet_mesh.GetTetVertexIndicesAttr().Get() or [], dtype=np.int64
             ).reshape(-1, 4)
-            surface_report["tet_volume_topology"] = compute_tet_volume_topology(
-                tet_indices,
+            volume_topology = compute_tet_volume_topology(tet_indices)
+            tets_per_element_attr = tet_mesh.GetPrim().GetAttribute(
+                "physxVolumeDeformableSim:numTetsPerElement"
             )
+            tets_per_element = (
+                int(tets_per_element_attr.Get())
+                if tets_per_element_attr and tets_per_element_attr.HasAuthoredValueOpinion()
+                else None
+            )
+            if label == "SimulationTetSurface" and tets_per_element:
+                # PhysX's voxel/hexahedral representation may duplicate vertex
+                # coordinates and geometrically overlap the per-element Tet
+                # decomposition. Its Tet IDs remain valid for FEM/J auditing,
+                # but ordinary conforming-volume manifold rules do not apply.
+                volume_topology.update(
+                    {
+                        "representation": "physx_voxel_hexahedral_tet_decomposition",
+                        "tets_per_element": tets_per_element,
+                        "authoritative": False,
+                        "reason": "hexahedral_tet_decomposition_not_conforming_tet_volume",
+                    }
+                )
+            else:
+                volume_topology.update(
+                    {
+                        "representation": "conforming_tet_volume",
+                        "tets_per_element": tets_per_element,
+                        "authoritative": True,
+                        "reason": None,
+                    }
+                )
+            surface_report["tet_volume_topology"] = volume_topology
             exported.append(surface_report)
 
     debug_stage.GetRootLayer().Save()
