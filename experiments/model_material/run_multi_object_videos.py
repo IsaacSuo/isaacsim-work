@@ -60,6 +60,19 @@ def physics_cache_matches(report, frame_count, body_config, collision_asset=None
         != body_config["deformable_resolution"]
     ):
         return False
+    recorded_material = report.get("physics_material") or {}
+    collision_policy = body_config["deformable_collision_policy"]
+    policy_report_keys = {
+        "remeshing_enabled": "collision_remeshing",
+        "remeshing_resolution": "remeshing_resolution",
+        "target_triangle_count": "target_triangle_count",
+        "force_conforming": "force_conforming",
+    }
+    if any(
+        recorded_material.get(report_key) != collision_policy[policy_key]
+        for policy_key, report_key in policy_report_keys.items()
+    ):
+        return False
     if collision_asset is not None:
         if not recorded_path_matches(report.get("prebuilt_collision_usd"), collision_asset):
             return False
@@ -148,6 +161,19 @@ def validate_config(config, profiles, material_presets, scene_configs):
             resolution = int(policy.get("sdf_resolution", 0))
             if resolution <= 1:
                 raise ValueError(f"Invalid SDF resolution for {model}: {resolution}")
+    deformable_policy = config.get("deformable_collision_policy") or {}
+    required_deformable_policy = {
+        "remeshing_enabled",
+        "remeshing_resolution",
+        "target_triangle_count",
+        "force_conforming",
+    }
+    if set(deformable_policy) != required_deformable_policy:
+        raise ValueError("Deformable collision policy is incomplete")
+    if int(deformable_policy["remeshing_resolution"]) < 0:
+        raise ValueError("Deformable remeshing resolution must be non-negative")
+    if int(deformable_policy["target_triangle_count"]) < 0:
+        raise ValueError("Deformable target triangle count must be non-negative")
     for experiment in experiments:
         bodies = experiment.get("bodies") or []
         if len(bodies) < 3:
@@ -166,7 +192,13 @@ def validate_config(config, profiles, material_presets, scene_configs):
                 )
 
 
-def build_body_config(experiment, scene, profiles, collision_policies):
+def build_body_config(
+    experiment,
+    scene,
+    profiles,
+    collision_policies,
+    deformable_collision_policy,
+):
     bodies = []
     for body in experiment["bodies"]:
         model_path = SIMULATION_MODELS / body["model"]
@@ -233,17 +265,30 @@ def build_body_config(experiment, scene, profiles, collision_policies):
     return {
         "physics_substeps": int(experiment.get("physics_substeps", 4)),
         "deformable_resolution": int(experiment.get("deformable_resolution", 24)),
+        "deformable_collision_policy": dict(deformable_collision_policy),
         "bodies": bodies,
     }
 
 
-def run_physics(args, experiment, scene, run_dir, profiles, collision_policies):
+def run_physics(
+    args,
+    experiment,
+    scene,
+    run_dir,
+    profiles,
+    collision_policies,
+    deformable_collision_policy,
+):
     physics_dir = run_dir / "isaac" / scene["name"]
     report_path = physics_dir / "run_complete.json"
     cache_path = physics_dir / "soft_body_blender.usdc"
     body_config_path = physics_dir / "bodies.json"
     body_config = build_body_config(
-        experiment, scene, profiles, collision_policies
+        experiment,
+        scene,
+        profiles,
+        collision_policies,
+        deformable_collision_policy,
     )
     write_json(body_config_path, body_config)
     collision_asset = ensure_collision_asset(args.output, scene) if scene["needs_exact_collision"] else None
@@ -291,6 +336,19 @@ def run_physics(args, experiment, scene, run_dir, profiles, collision_policies):
         "--skip-preview-render",
         "--require-interbody-contact",
     ]
+    deformable_policy = body_config["deformable_collision_policy"]
+    if deformable_policy["remeshing_enabled"]:
+        command.append("--deformable-collision-remeshing")
+    command.extend(
+        [
+            "--deformable-remeshing-resolution",
+            str(deformable_policy["remeshing_resolution"]),
+            "--deformable-target-triangle-count",
+            str(deformable_policy["target_triangle_count"]),
+        ]
+    )
+    if deformable_policy["force_conforming"]:
+        command.append("--deformable-force-conforming")
     if collision_asset:
         command.extend(["--prebuilt-collision-usd", str(collision_asset)])
     ground_patch = scene["ground_patch"]
@@ -471,6 +529,7 @@ def main():
     profiles = profile_config["physics_profiles"]
     material_presets = profile_config["material_presets"]
     collision_policies = config["rigid_collision_policies"]
+    deformable_collision_policy = config["deformable_collision_policy"]
     scene_configs = json.loads(SCENE_CONFIG_PATH.read_text(encoding="utf-8"))
     validate_config(config, profiles, material_presets, scene_configs)
     selected = set(args.only or [row["id"] for row in config["experiments"]])
@@ -491,13 +550,18 @@ def main():
                     run_dir,
                     profiles,
                     collision_policies,
+                    deformable_collision_policy,
                 )
             else:
                 report_path = physics_dir / "run_complete.json"
                 cache_path = physics_dir / "soft_body_blender.usdc"
                 physics_report = json.loads(report_path.read_text(encoding="utf-8"))
                 body_config = build_body_config(
-                    experiment, scene, profiles, collision_policies
+                    experiment,
+                    scene,
+                    profiles,
+                    collision_policies,
+                    deformable_collision_policy,
                 )
                 collision_asset = (
                     ROOT

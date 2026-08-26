@@ -93,6 +93,12 @@
       "sdf_resolution": 512
     }
   },
+  "deformable_collision_policy": {
+    "remeshing_enabled": true,
+    "remeshing_resolution": 0,
+    "target_triangle_count": 0,
+    "force_conforming": true
+  },
   "experiments": [
     {
       "id": "alley_random_mixed_collision",
@@ -441,7 +447,7 @@
         }
       ],
       "physics_substeps": 8,
-      "deformable_resolution": 36
+      "deformable_resolution": 12
     },
     {
       "id": "graffiti_warehouse_random_mixed_collision",

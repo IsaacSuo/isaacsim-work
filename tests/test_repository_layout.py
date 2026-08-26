@@ -62,10 +62,20 @@ class RepositoryLayoutTests(unittest.TestCase):
         )
         experiments = config["experiments"]
         collision_policies = config["rigid_collision_policies"]
+        deformable_policy = config["deformable_collision_policy"]
 
         self.assertIsInstance(config.get("seed"), int)
         self.assertEqual(
             set(collision_policies), set(config["simulation_model_pool"])
+        )
+        self.assertEqual(
+            deformable_policy,
+            {
+                "remeshing_enabled": True,
+                "remeshing_resolution": 0,
+                "target_triangle_count": 0,
+                "force_conforming": True,
+            },
         )
         for model, policy in collision_policies.items():
             with self.subTest(collision_model=model):
@@ -77,6 +87,9 @@ class RepositoryLayoutTests(unittest.TestCase):
         self.assertEqual(len(experiments), 14)
         self.assertEqual({row["scene"] for row in experiments}, set(scenes))
         self.assertEqual(len({row["scene"] for row in experiments}), len(experiments))
+        garage = next(row for row in experiments if row["scene"] == "garage")
+        self.assertEqual(garage["physics_substeps"], 8)
+        self.assertEqual(garage["deformable_resolution"], 12)
         for experiment in experiments:
             with self.subTest(scene=experiment["scene"]):
                 bodies = experiment["bodies"]

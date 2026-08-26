@@ -79,6 +79,13 @@ RIGID_COLLISION_POLICIES = {
     "tree_1.stl": {"approximation": "sdf", "sdf_resolution": 512},
 }
 
+DEFORMABLE_COLLISION_POLICY = {
+    "remeshing_enabled": True,
+    "remeshing_resolution": 0,
+    "target_triangle_count": 0,
+    "force_conforming": True,
+}
+
 MATERIAL_SLOTS = (
     ("silicone_cloudy", ("silicone_soft", "silicone_firm")),
     ("rough_white", ("hard_white",)),
@@ -152,8 +159,9 @@ CURATED_PRODUCTION_OVERRIDES = {
 
 CURATED_EXPERIMENT_OVERRIDES = {
     # Thin tree branches and a deformable body collide in a compact three-body
-    # stack. Use finer deformable sampling and temporal resolution here.
-    "garage": {"physics_substeps": 8, "deformable_resolution": 36},
+    # stack. Garage keeps the validated 480 Hz temporal resolution while the
+    # coarser regular simulation mesh improves FEM stability.
+    "garage": {"physics_substeps": 8, "deformable_resolution": 12},
 }
 
 
@@ -217,6 +225,7 @@ def generate(seed: int):
         "interbody_collision_layout": "three_near_coaxial_staggered_drops",
         "simulation_model_pool": list(SIMULATION_MODEL_POOL),
         "rigid_collision_policies": RIGID_COLLISION_POLICIES,
+        "deformable_collision_policy": DEFORMABLE_COLLISION_POLICY,
         "experiments": experiments,
     }
 
