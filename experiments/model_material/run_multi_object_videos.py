@@ -51,6 +51,12 @@ def parse_args():
         action="store_true",
         help="Record per-frame simulation-Tet deformation metrics during physics.",
     )
+    parser.add_argument(
+        "--deformable-solver-position-iterations",
+        type=int,
+        default=24,
+        help="Position iterations used by deformable bodies (default: 24).",
+    )
     return parser.parse_args()
 
 
@@ -72,6 +78,11 @@ def physics_cache_matches(
     if not report.get("valid") or report.get("physics_frames") != frame_count:
         return False
     if report.get("physics_substeps") != body_config["physics_substeps"]:
+        return False
+    if (
+        (report.get("physics_material") or {}).get("solver_position_iterations")
+        != body_config["deformable_solver_position_iterations"]
+    ):
         return False
     if (
         (report.get("physics_material") or {}).get("deformable_resolution")
@@ -326,6 +337,9 @@ def run_physics(
         collision_policies,
         deformable_collision_policy,
     )
+    body_config["deformable_solver_position_iterations"] = int(
+        args.deformable_solver_position_iterations
+    )
     write_json(body_config_path, body_config)
     collision_asset = ensure_collision_asset(args.output, scene) if scene["needs_exact_collision"] else None
     if not args.force and report_path.is_file() and cache_path.is_file():
@@ -367,6 +381,8 @@ def run_physics(
         "--expected-behavior", "soft",
         "--validation-profile", "generic",
         "--deformable-resolution", str(body_config["deformable_resolution"]),
+        "--deformable-solver-position-iterations",
+        str(body_config["deformable_solver_position_iterations"]),
         "--environment-usd", str(scene["usd"]),
         "--environment-ground-only",
         "--support-top-y", str(scene["support_y"]),
@@ -616,6 +632,9 @@ def main():
                     profiles,
                     collision_policies,
                     deformable_collision_policy,
+                )
+                body_config["deformable_solver_position_iterations"] = int(
+                    args.deformable_solver_position_iterations
                 )
                 collision_asset = (
                     ROOT

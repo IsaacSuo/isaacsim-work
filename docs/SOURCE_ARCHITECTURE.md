@@ -70,6 +70,11 @@ PhysX voxel simulation mesh 是 FEM proxy：其 bind-pose 反转审核仍具权�
 `--audit-tet-trajectory`。开启后缓存复用会同时核对调试 USD、指定帧号和 Tet
 轨迹报告；默认不导出诊断数据，不改变正式视频行为。
 
+参数实验可用 `--deformable-solver-position-iterations N` 覆盖软体 position
+iterations（默认 24，PhysX 入口接受 1–255）。该值会写入物体配置和物理报告，
+缓存复用也会核对它；改变参数不会误用旧物理缓存。它用于受控的收敛实验，不应
+代替 Tet 轨迹和表面穿透审核。
+
 `soft_body_bounce_hero.py` 保持根目录兼容入口，因为固定拓扑管线和已有任务会记录它的文件名与 SHA-256。
 
 ## 分层规则

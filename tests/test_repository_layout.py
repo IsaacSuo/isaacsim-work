@@ -134,6 +134,15 @@ class RepositoryLayoutTests(unittest.TestCase):
         self.assertIn('report.get("deformable_collision_debug")', source)
         self.assertIn('report.get("tet_deformation_trajectory")', source)
 
+    def test_multi_object_runner_exposes_deformable_solver_iterations(self):
+        source = (
+            ROOT / "experiments/model_material/run_multi_object_videos.py"
+        ).read_text(encoding="utf-8")
+        self.assertIn('"--deformable-solver-position-iterations"', source)
+        self.assertIn('report.get("physics_material")', source)
+        self.assertIn('get("solver_position_iterations")', source)
+        self.assertIn('body_config["deformable_solver_position_iterations"]', source)
+
 
 if __name__ == "__main__":
     unittest.main()
