@@ -43,6 +43,22 @@ configs/blender_camera_selections.json
     └── FFmpeg
 ```
 
+### 仿真结果审核
+
+```text
+tools/physx/run_penetration_audit.py
+└── Blender + tools/blender/audit_simulation_penetration.py
+    ├── soft_body/penetration.py
+    ├── soft_body/tet_quality.py 生成的调试质量记录
+    └── output/.../penetration_audit.json
+```
+
+审核链路只读，不改变仿真。BVH 只筛选三角面候选，精确边/三角面交叉确认真实
+表面相交，再以最近表面法线估计侵入深度；同时检查 Tet 反转、Collision 与
+Simulation 表面的非流形边，以及可选支撑平面穿透。JSON 是稳定主结果，批处理
+退出码为 0（通过）、1（工具错误）、2（有效但不合格）。当前不覆盖无表面交叉
+的完全包含情形。
+
 `soft_body_bounce_hero.py` 保持根目录兼容入口，因为固定拓扑管线和已有任务会记录它的文件名与 SHA-256。
 
 ## 分层规则
@@ -80,10 +96,11 @@ soft_body/
 ├── config.py          # 物体配置归一化与基础约束
 ├── geometry.py        # 局部裁剪等纯几何逻辑
 ├── tet_quality.py     # Tet 体积、长宽比与反转统计
-├── collision.py       # 后续：网格清理与精确碰撞
+├── penetration.py     # 精确三角面交叉与穿透容差
+├── collision.py       # 后续：网格清理与碰撞构建
 ├── environment.py     # USD 环境、材质与灯光恢复
 ├── deformable.py      # 软体层级和 PhysX 参数
-├── validation.py      # 后续：穿透、压缩、反弹与自由坠落验收
+├── validation.py      # 后续：压缩、反弹与自由坠落验收编排
 └── blender_export.py  # 固定拓扑动画 USD
 ```
 
@@ -91,7 +108,7 @@ soft_body/
 
 ## 下一轮重构顺序
 
-1. 基于 `soft_body/tet_quality.py` 建立独立的穿透与 Tet 反转审核模块。
-2. 运行 garage、hospital、mountain 三类代表场景的缓存回归。
+1. 运行 garage、hospital、mountain 三类代表场景的审核缓存回归。
+2. 审核规则稳定后，再显式接入 14 场景批处理，不能静默改变正式配置。
 3. 再抽取 Blender USD 导出；环境材质与灯光保持一组，避免过度拆分。
 4. 最后处理 `physx_realistic_liquid.py`，并保留旧任务可恢复性。

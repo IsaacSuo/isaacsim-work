@@ -6,8 +6,10 @@
 - `config.py`：物体配置归一化和基础字段约束。
 - `geometry.py`：局部碰撞裁剪等纯几何操作。
 - `tet_quality.py`：四面体体积、长宽比和相对 bind pose 的反转统计。
+- `penetration.py`：精确线段/三角面相交、BVH 候选复核和穿透容差判断。
 
 依赖方向保持单向：主入口和审核工具可以导入本包，本包不能导入
 `soft_body_bounce_hero.py`，也不应导入 `omni`、`pxr` 或启动
-`SimulationApp`。后续穿透审核应把 USD/Blender 数据读取留在工具层，数值判断
-放在本包，避免审核代码再次与仿真入口耦合。
+`SimulationApp`。穿透审核把 USD/Blender 数据读取留在工具层，数值判断放在
+本包，避免审核代码再次与仿真入口耦合。BVH 只负责宽阶段候选筛选，最终失败
+必须由精确表面交叉和超过容差的侵入深度共同确认，正常贴合不算穿透。

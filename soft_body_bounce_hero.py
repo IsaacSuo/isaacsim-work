@@ -183,6 +183,29 @@ def parse_args():
             "the opposite side during a hard impact."
         ),
     )
+    parser.add_argument(
+        "--deformable-solver-position-iterations",
+        type=int,
+        default=24,
+        help="Position iterations per PhysX time step for deformable bodies.",
+    )
+    parser.add_argument(
+        "--deformable-max-linear-velocity",
+        type=float,
+        default=None,
+        help="Optional deformable node velocity limit in m/s; omitted means unlimited.",
+    )
+    parser.add_argument(
+        "--deformable-max-depenetration-velocity",
+        type=float,
+        default=None,
+        help="Optional solver depenetration velocity limit in m/s; omitted means unlimited.",
+    )
+    parser.add_argument(
+        "--audit-tet-trajectory",
+        action="store_true",
+        help="Record per-frame simulation-Tet J=det(F), inversion, and sampled velocity metrics.",
+    )
     parser.add_argument("--environment-usd", default=None, help="Optional static environment USD added as a sublayer.")
     parser.add_argument(
         "--prebuilt-collision-usd",
@@ -466,7 +489,7 @@ import omni.kit.app
 import omni.usd
 from soft_body.config import normalize_body_specs
 from soft_body.geometry import TriangleBoxCropper
-from soft_body.tet_quality import compute_tet_quality
+from soft_body.tet_quality import compute_tet_deformation, compute_tet_quality
 from omni.kit.viewport.utility import capture_viewport_to_file, get_active_viewport
 from omni.kit.material.library import CreateAndBindMdlMaterialFromLibrary
 from omni.physx import get_physx_simulation_interface
@@ -1869,7 +1892,23 @@ def create_deformable_body(stage, index, spec, visual_material, physics_material
     root_prim.GetAttribute("physxDeformableBody:settlingDamping").Set(
         float(spec["settling_damping"])
     )
-    root_prim.GetAttribute("physxDeformableBody:solverPositionIterationCount").Set(24)
+    if not 1 <= ARGS.deformable_solver_position_iterations <= 255:
+        raise ValueError("deformable solver position iterations must be in [1, 255]")
+    root_prim.GetAttribute("physxDeformableBody:solverPositionIterationCount").Set(
+        int(ARGS.deformable_solver_position_iterations)
+    )
+    if ARGS.deformable_max_linear_velocity is not None:
+        if ARGS.deformable_max_linear_velocity < 0.0:
+            raise ValueError("deformable max linear velocity must be non-negative")
+        root_prim.GetAttribute("physxDeformableBody:maxLinearVelocity").Set(
+            float(ARGS.deformable_max_linear_velocity)
+        )
+    if ARGS.deformable_max_depenetration_velocity is not None:
+        if ARGS.deformable_max_depenetration_velocity < 0.0:
+            raise ValueError("deformable max depenetration velocity must be non-negative")
+        root_prim.GetAttribute("physxDeformableBody:maxDepenetrationVelocity").Set(
+            float(ARGS.deformable_max_depenetration_velocity)
+        )
     root_prim.GetAttribute("physxDeformableBody:enableSpeculativeCCD").Set(True)
     root_prim.GetAttribute("physxDeformableBody:selfCollision").Set(
         bool(ARGS.deformable_self_collision)
@@ -1926,6 +1965,9 @@ def create_deformable_body(stage, index, spec, visual_material, physics_material
         "force_conforming": bool(ARGS.deformable_force_conforming),
         "self_collision": bool(ARGS.deformable_self_collision),
         "self_collision_filter_distance": float(ARGS.self_collision_filter_distance),
+        "solver_position_iterations": int(ARGS.deformable_solver_position_iterations),
+        "max_linear_velocity": ARGS.deformable_max_linear_velocity,
+        "max_depenetration_velocity": ARGS.deformable_max_depenetration_velocity,
         "physics_kind": "deformable",
         "physics_profile": spec.get("physics_profile"),
         "material_preset": spec.get("material_preset"),
@@ -2497,6 +2539,8 @@ def main():
 
         simulation_points_count = None
         simulation_points_per_body = None
+        tet_trajectory_states = {}
+        tet_trajectory = None
         if ARGS.debug_deformable_frame is not None and not (
             1 <= ARGS.debug_deformable_frame <= ARGS.frames
         ):
@@ -2520,6 +2564,84 @@ def main():
                         f"for body {body['index']}"
                     )
             snapshot = frame_snapshots[0]
+            if ARGS.audit_tet_trajectory:
+                for body in bodies:
+                    if body["physics_kind"] != "deformable":
+                        continue
+                    tet_mesh = UsdGeom.TetMesh.Get(stage, body["sim_path"])
+                    current_points = np.asarray(
+                        tet_mesh.GetPointsAttr().Get() or [], dtype=np.float64
+                    )
+                    tet_indices = np.asarray(
+                        tet_mesh.GetTetVertexIndicesAttr().Get() or [], dtype=np.int64
+                    ).reshape(-1, 4)
+                    bind_attr = tet_mesh.GetPrim().GetAttribute(
+                        "deformablePose:default:omniphysics:points"
+                    )
+                    bind_points = np.asarray(
+                        bind_attr.Get() or [], dtype=np.float64
+                    )
+                    if not len(current_points) or not len(tet_indices):
+                        raise RuntimeError(
+                            f"Simulation TetMesh is empty during trajectory audit: {body['sim_path']}"
+                        )
+                    state = tet_trajectory_states.get(body["index"])
+                    if state is None:
+                        if len(bind_points) != len(current_points):
+                            raise RuntimeError(
+                                f"Simulation TetMesh has no compatible bind pose: {body['sim_path']}"
+                            )
+                        deformation = compute_tet_deformation(
+                            current_points, tet_indices, bind_points
+                        )
+                        minimum_altitude = deformation["minimum_rest_altitude_m"]
+                        substep_dt = 1.0 / (60.0 * ARGS.substeps)
+                        state = {
+                            "body_index": int(body["index"]),
+                            "simulation_mesh": str(body["sim_path"]),
+                            "simulation_mode": (
+                                "shared_conforming_tet"
+                                if ARGS.deformable_tetrahedral_simulation
+                                else "independent_voxel_tet"
+                            ),
+                            "tetrahedron_count": int(len(tet_indices)),
+                            "point_count": int(len(current_points)),
+                            "minimum_rest_altitude_m": float(minimum_altitude),
+                            "substep_dt_s": float(substep_dt),
+                            "characteristic_velocity_limits_m_s": {
+                                str(fraction): float(
+                                    fraction * minimum_altitude / substep_dt
+                                )
+                                for fraction in (0.1, 0.25, 0.5, 1.0)
+                            },
+                            "previous_points": bind_points.copy(),
+                            "samples": [],
+                        }
+                        tet_trajectory_states[body["index"]] = state
+                    else:
+                        deformation = compute_tet_deformation(
+                            current_points, tet_indices, bind_points
+                        )
+                    sampled_speeds = np.linalg.norm(
+                        (current_points - state["previous_points"]) * 60.0,
+                        axis=1,
+                    )
+                    sample = {
+                        "frame": int(frame + 1),
+                        **deformation,
+                        "maximum_frame_sampled_vertex_speed_m_s": float(
+                            np.max(sampled_speeds)
+                        ),
+                    }
+                    state["samples"].append(sample)
+                    state["previous_points"] = current_points.copy()
+                    if sample["minimum_j"] < 0.3:
+                        print(
+                            f"[tet-audit] body={body['index']} frame={frame + 1} "
+                            f"minJ={sample['minimum_j']:.6g} "
+                            f"tet={sample['minimum_j_tet']} "
+                            f"inverted={sample['inverted_tets']}"
+                        )
             if simulation_points_count is None:
                 simulation_points_per_body = []
                 for body in bodies:
@@ -2555,6 +2677,61 @@ def main():
                     f"center_y={snapshot['center'][1]:.4f} bottom={snapshot['minimum'][1]:.4f} "
                     f"height={snapshot['height']:.4f} radius_xz={snapshot['horizontal_radius']:.4f}"
                 )
+
+        if ARGS.audit_tet_trajectory:
+            trajectory_bodies = []
+            for state in tet_trajectory_states.values():
+                samples = state.pop("samples")
+                state.pop("previous_points")
+                minimum_sample = min(samples, key=lambda item: item["minimum_j"])
+                trajectory_bodies.append(
+                    {
+                        **state,
+                        "summary": {
+                            "minimum_j": float(minimum_sample["minimum_j"]),
+                            "minimum_j_frame": int(minimum_sample["frame"]),
+                            "minimum_j_tet": int(minimum_sample["minimum_j_tet"]),
+                            "maximum_inverted_tets": int(
+                                max(item["inverted_tets"] for item in samples)
+                            ),
+                            "first_inversion_frame": next(
+                                (
+                                    int(item["frame"])
+                                    for item in samples
+                                    if item["inverted_tets"] > 0
+                                ),
+                                None,
+                            ),
+                            "maximum_frame_sampled_vertex_speed_m_s": float(
+                                max(
+                                    item["maximum_frame_sampled_vertex_speed_m_s"]
+                                    for item in samples
+                                )
+                            ),
+                        },
+                        "samples": samples,
+                    }
+                )
+            tet_trajectory = {
+                "schema_version": 1,
+                "physics_frame_rate_hz": 60,
+                "physics_substeps": int(ARGS.substeps),
+                "solver_position_iterations": int(
+                    ARGS.deformable_solver_position_iterations
+                ),
+                "max_linear_velocity_m_s": ARGS.deformable_max_linear_velocity,
+                "max_depenetration_velocity_m_s": (
+                    ARGS.deformable_max_depenetration_velocity
+                ),
+                "bodies": trajectory_bodies,
+            }
+            trajectory_path = OUTPUT_DIR / "tet_deformation_trajectory.json"
+            trajectory_path.write_text(
+                json.dumps(tet_trajectory, indent=2), encoding="utf-8"
+            )
+            tet_trajectory["path"] = str(trajectory_path)
+            report["tet_deformation_trajectory"] = tet_trajectory
+            print(f"[tet-audit] report={trajectory_path}")
 
         simulation.detach_stage()
         attached = False
@@ -2894,6 +3071,14 @@ def main():
                     "settling_damping": ARGS.settling_damping,
                     "restitution": ARGS.restitution,
                     "deformable_resolution": ARGS.deformable_resolution,
+                    "deformable_simulation_mode": (
+                        "shared_conforming_tet"
+                        if ARGS.deformable_tetrahedral_simulation
+                        else "independent_voxel_tet"
+                    ),
+                    "solver_position_iterations": ARGS.deformable_solver_position_iterations,
+                    "max_linear_velocity": ARGS.deformable_max_linear_velocity,
+                    "max_depenetration_velocity": ARGS.deformable_max_depenetration_velocity,
                     "collision_contact_offset": ARGS.collision_contact_offset,
                     "collision_rest_offset": ARGS.collision_rest_offset,
                     "model": str(ARGS.model),
@@ -2913,6 +3098,12 @@ def main():
                         "collision_approximation": body["collision_approximation"],
                         "sdf_resolution": body["sdf_resolution"],
                         "sdf_enable_remeshing": body["sdf_enable_remeshing"],
+                        "tetrahedral_simulation": body.get("tetrahedral_simulation"),
+                        "solver_position_iterations": body.get("solver_position_iterations"),
+                        "max_linear_velocity": body.get("max_linear_velocity"),
+                        "max_depenetration_velocity": body.get(
+                            "max_depenetration_velocity"
+                        ),
                         "physics_kind": body["physics_kind"],
                         "physics_profile": body["physics_profile"],
                         "material_preset": body["material_preset"],

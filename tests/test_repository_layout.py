@@ -17,6 +17,8 @@ class RepositoryLayoutTests(unittest.TestCase):
             "tools/scenes/run_static_scene_videos.py",
             "tools/blender/render_blender_soft_body_cache.py",
             "tools/blender/render_blender_selected_videos.py",
+            "tools/blender/audit_simulation_penetration.py",
+            "tools/physx/run_penetration_audit.py",
         )
         for relative_path in expected:
             with self.subTest(path=relative_path):
@@ -27,6 +29,7 @@ class RepositoryLayoutTests(unittest.TestCase):
             "soft_body/config.py",
             "soft_body/geometry.py",
             "soft_body/tet_quality.py",
+            "soft_body/penetration.py",
         )
         for relative_path in expected:
             with self.subTest(path=relative_path):

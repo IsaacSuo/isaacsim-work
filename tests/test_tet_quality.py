@@ -4,7 +4,11 @@ import unittest
 
 import numpy as np
 
-from soft_body.tet_quality import compute_tet_quality
+from soft_body.tet_quality import (
+    compute_tet_deformation,
+    compute_tet_quality,
+    tetrahedron_minimum_altitudes,
+)
 
 
 class TetQualityTests(unittest.TestCase):
@@ -34,6 +38,18 @@ class TetQualityTests(unittest.TestCase):
 
         self.assertEqual(report["inverted_from_bind_pose_count"], 1)
         self.assertLess(report["minimum_signed_volume_ratio_to_bind"], 0.0)
+
+        deformation = compute_tet_deformation(
+            current, self.indices, self.points
+        )
+        self.assertEqual(deformation["minimum_j_tet"], 0)
+        self.assertEqual(deformation["inverted_tets"], 1)
+        self.assertAlmostEqual(deformation["minimum_j"], -1.0)
+
+    def test_computes_minimum_altitude(self):
+        altitudes = tetrahedron_minimum_altitudes(self.points, self.indices)
+        self.assertEqual(len(altitudes), 1)
+        self.assertGreater(altitudes[0], 0.0)
 
     def test_rejects_invalid_indices(self):
         with self.assertRaisesRegex(ValueError, "outside"):
