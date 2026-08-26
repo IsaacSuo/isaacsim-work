@@ -15,7 +15,9 @@
 批处理建议调用 `tools/physx/run_penetration_audit.py`，它提供稳定的 0/1/2
 退出码。
 
-审核 JSON schema 2 将 Tet 拓扑与导入表面诊断分开：正式拓扑结论只读取仿真
+审核 JSON schema 4 将 Tet 拓扑与导入表面诊断分开：正式拓扑结论只读取仿真
 导出时保存的完整四面体连接；Blender 表面网格的边计数仅作非权威诊断。
 collision Tet 不使用 bind 映射判断反转，反转项只审核 simulation Tet。缺少
-完整连接的旧调试报告返回 `valid=false`，不会被误报成物理非流形。
+完整连接的旧调试报告返回 `valid=false`，不会被误报成物理非流形。PhysX voxel
+hexahedral Tet decomposition 的拓扑与表面重叠只作非权威诊断；simulation Tet
+的 bind-pose 反转仍为权威结论，接触穿透则以 visual/collision surface 为准。

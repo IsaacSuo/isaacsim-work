@@ -40,6 +40,17 @@ def parse_args():
     parser.add_argument("--resolution", type=int, default=640)
     parser.add_argument("--stage", choices=("physics", "render", "all"), default="all")
     parser.add_argument("--force", action="store_true")
+    parser.add_argument(
+        "--debug-deformable-frame",
+        type=int,
+        default=None,
+        help="Export authoritative deformable debug geometry at this one-based physics frame.",
+    )
+    parser.add_argument(
+        "--audit-tet-trajectory",
+        action="store_true",
+        help="Record per-frame simulation-Tet deformation metrics during physics.",
+    )
     return parser.parse_args()
 
 
@@ -48,7 +59,14 @@ def write_json(path, payload):
     path.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
 
 
-def physics_cache_matches(report, frame_count, body_config, collision_asset=None):
+def physics_cache_matches(
+    report,
+    frame_count,
+    body_config,
+    collision_asset=None,
+    debug_deformable_frame=None,
+    audit_tet_trajectory=False,
+):
     actual_bodies = report.get("physics_bodies") or []
     expected_bodies = body_config["bodies"]
     if not report.get("valid") or report.get("physics_frames") != frame_count:
@@ -73,6 +91,24 @@ def physics_cache_matches(report, frame_count, body_config, collision_asset=None
         for policy_key, report_key in policy_report_keys.items()
     ):
         return False
+    if debug_deformable_frame is not None:
+        debug_export = report.get("deformable_collision_debug") or {}
+        debug_path = Path(debug_export.get("path") or "")
+        if (
+            debug_export.get("frame") != debug_deformable_frame
+            or not debug_path.is_file()
+            or debug_path.stat().st_size <= 0
+        ):
+            return False
+    if audit_tet_trajectory:
+        trajectory = report.get("tet_deformation_trajectory") or {}
+        trajectory_path = Path(trajectory.get("path") or "")
+        if (
+            not trajectory.get("bodies")
+            or not trajectory_path.is_file()
+            or trajectory_path.stat().st_size <= 0
+        ):
+            return False
     if collision_asset is not None:
         if not recorded_path_matches(report.get("prebuilt_collision_usd"), collision_asset):
             return False
@@ -296,7 +332,14 @@ def run_physics(
         report = json.loads(report_path.read_text(encoding="utf-8"))
         exported = report.get("blender_animation_cache") or {}
         if (
-            physics_cache_matches(report, args.frames, body_config, collision_asset)
+            physics_cache_matches(
+                report,
+                args.frames,
+                body_config,
+                collision_asset,
+                args.debug_deformable_frame,
+                args.audit_tet_trajectory,
+            )
             and exported.get("valid")
             and exported.get("body_count") == len(body_config["bodies"])
         ):
@@ -349,6 +392,17 @@ def run_physics(
     )
     if deformable_policy["force_conforming"]:
         command.append("--deformable-force-conforming")
+    if args.debug_deformable_frame is not None:
+        command.extend(
+            [
+                "--debug-deformable-frame",
+                str(args.debug_deformable_frame),
+                "--debug-deformable-usd-name",
+                f"deformable_collision_debug_frame{args.debug_deformable_frame}.usdc",
+            ]
+        )
+    if args.audit_tet_trajectory:
+        command.append("--audit-tet-trajectory")
     if collision_asset:
         command.extend(["--prebuilt-collision-usd", str(collision_asset)])
     ground_patch = scene["ground_patch"]
@@ -580,6 +634,8 @@ def main():
                         args.frames,
                         body_config,
                         collision_asset,
+                        args.debug_deformable_frame,
+                        args.audit_tet_trajectory,
                     )
                     or not exported.get("valid")
                     or exported.get("body_count") != len(body_config["bodies"])

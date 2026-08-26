@@ -90,6 +90,9 @@ class RepositoryLayoutTests(unittest.TestCase):
         garage = next(row for row in experiments if row["scene"] == "garage")
         self.assertEqual(garage["physics_substeps"], 8)
         self.assertEqual(garage["deformable_resolution"], 12)
+        mountain = next(row for row in experiments if row["scene"] == "mountain")
+        self.assertEqual(mountain["physics_substeps"], 8)
+        self.assertEqual(mountain["deformable_resolution"], 16)
         for experiment in experiments:
             with self.subTest(scene=experiment["scene"]):
                 bodies = experiment["bodies"]
@@ -121,6 +124,15 @@ class RepositoryLayoutTests(unittest.TestCase):
         self.assertEqual(environment["blender"]["version"], "5.0.1")
         self.assertEqual(environment["timing"]["physics_frames"], 300)
         self.assertEqual(environment["timing"]["animation_cache_fps"], 60)
+
+    def test_multi_object_runner_exposes_explicit_deformable_audit_flags(self):
+        source = (
+            ROOT / "experiments/model_material/run_multi_object_videos.py"
+        ).read_text(encoding="utf-8")
+        self.assertIn('"--debug-deformable-frame"', source)
+        self.assertIn('"--audit-tet-trajectory"', source)
+        self.assertIn('report.get("deformable_collision_debug")', source)
+        self.assertIn('report.get("tet_deformation_trajectory")', source)
 
 
 if __name__ == "__main__":

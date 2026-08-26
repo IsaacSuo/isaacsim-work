@@ -533,7 +533,9 @@
           "collision_contact_offset": 0.03,
           "collision_rest_offset": 0.01
         }
-      ]
+      ],
+      "physics_substeps": 8,
+      "deformable_resolution": 16
     },
     {
       "id": "subway2_random_mixed_collision",

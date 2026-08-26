@@ -162,6 +162,10 @@ CURATED_EXPERIMENT_OVERRIDES = {
     # stack. Garage keeps the validated 480 Hz temporal resolution while the
     # coarser regular simulation mesh improves FEM stability.
     "garage": {"physics_substeps": 8, "deformable_resolution": 12},
+    # Uneven terrain produces a hard oblique impact. A moderately coarse regular
+    # FEM mesh preserves support geometry while 480 Hz stepping prevents Tet
+    # inversion; both the trajectory and schema-4 surface audit were validated.
+    "mountain": {"physics_substeps": 8, "deformable_resolution": 16},
 }
 
 

@@ -61,8 +61,14 @@ Simulation 表面的非流形边，以及可选支撑平面穿透。JSON 是稳�
 
 Tet 审核口径以体积连接为准：出现两次的无向面是正常内部共享面，先成对剔除
 后再检查真实边界；Blender 导入表面的边计数不参与通过判定。bind-pose 反转只
-使用 simulation Tet，collision Tet 的点序映射不作为反转证据。schema 2 之前
-没有保存体积连接的调试报告会标记为审核数据不足。
+使用 simulation Tet，collision Tet 的点序映射不作为反转证据。schema 4 之前
+没有保存体积连接或 simulation 表示语义的调试报告会标记为审核数据不足。
+PhysX voxel simulation mesh 是 FEM proxy：其 bind-pose 反转审核仍具权威性，
+但其拓扑和与刚体的表面重叠不作为接触穿透失败依据。
+
+多物体批处理可显式传入 `--debug-deformable-frame N` 和
+`--audit-tet-trajectory`。开启后缓存复用会同时核对调试 USD、指定帧号和 Tet
+轨迹报告；默认不导出诊断数据，不改变正式视频行为。
 
 `soft_body_bounce_hero.py` 保持根目录兼容入口，因为固定拓扑管线和已有任务会记录它的文件名与 SHA-256。
 
