@@ -23,24 +23,75 @@
     "tree_1.stl"
   ],
   "rigid_collision_policies": {
-    "banana.stl": {"approximation": "convexDecomposition"},
-    "bear.stl": {"approximation": "convexDecomposition"},
-    "bird.stl": {"approximation": "sdf", "sdf_resolution": 384},
-    "cap.stl": {"approximation": "sdf", "sdf_resolution": 384},
-    "carrot.stl": {"approximation": "sdf", "sdf_resolution": 384},
-    "cat.stl": {"approximation": "convexDecomposition"},
-    "chair.stl": {"approximation": "sdf", "sdf_resolution": 512},
-    "coral.stl": {"approximation": "sdf", "sdf_resolution": 512, "sdf_enable_remeshing": true},
-    "elephant.stl": {"approximation": "sdf", "sdf_resolution": 384},
-    "elephant_1.stl": {"approximation": "sdf", "sdf_resolution": 384},
-    "elephant_2.stl": {"approximation": "sdf", "sdf_resolution": 384},
-    "fish.stl": {"approximation": "sdf", "sdf_resolution": 384},
-    "fish_1.stl": {"approximation": "sdf", "sdf_resolution": 384},
-    "heart.stl": {"approximation": "convexDecomposition"},
-    "rabbit.stl": {"approximation": "sdf", "sdf_resolution": 384},
-    "statue.stl": {"approximation": "sdf", "sdf_resolution": 384},
-    "tree.stl": {"approximation": "sdf", "sdf_resolution": 512},
-    "tree_1.stl": {"approximation": "sdf", "sdf_resolution": 512}
+    "banana.stl": {
+      "approximation": "convexDecomposition"
+    },
+    "bear.stl": {
+      "approximation": "convexDecomposition"
+    },
+    "bird.stl": {
+      "approximation": "sdf",
+      "sdf_resolution": 384
+    },
+    "cap.stl": {
+      "approximation": "sdf",
+      "sdf_resolution": 384
+    },
+    "carrot.stl": {
+      "approximation": "sdf",
+      "sdf_resolution": 384
+    },
+    "cat.stl": {
+      "approximation": "convexDecomposition"
+    },
+    "chair.stl": {
+      "approximation": "sdf",
+      "sdf_resolution": 512
+    },
+    "coral.stl": {
+      "approximation": "sdf",
+      "sdf_resolution": 512,
+      "sdf_enable_remeshing": true
+    },
+    "elephant.stl": {
+      "approximation": "sdf",
+      "sdf_resolution": 384
+    },
+    "elephant_1.stl": {
+      "approximation": "sdf",
+      "sdf_resolution": 384
+    },
+    "elephant_2.stl": {
+      "approximation": "sdf",
+      "sdf_resolution": 384
+    },
+    "fish.stl": {
+      "approximation": "sdf",
+      "sdf_resolution": 384
+    },
+    "fish_1.stl": {
+      "approximation": "sdf",
+      "sdf_resolution": 384
+    },
+    "heart.stl": {
+      "approximation": "convexDecomposition"
+    },
+    "rabbit.stl": {
+      "approximation": "sdf",
+      "sdf_resolution": 384
+    },
+    "statue.stl": {
+      "approximation": "sdf",
+      "sdf_resolution": 384
+    },
+    "tree.stl": {
+      "approximation": "sdf",
+      "sdf_resolution": 512
+    },
+    "tree_1.stl": {
+      "approximation": "sdf",
+      "sdf_resolution": 512
+    }
   },
   "experiments": [
     {
@@ -351,41 +402,46 @@
       "bodies": [
         {
           "model": "tree.stl",
-          "model_height": 0.504,
+          "model_height": 0.655,
           "model_yaw": -7.7,
           "offset_x": -0.06,
           "offset_z": 0.03,
           "drop_offset": 0.0,
           "physics_profile": "hard_metal",
           "material_preset": "brushed_metal",
-          "collision_contact_offset": 0.03,
-          "collision_rest_offset": 0.01
+          "collision_contact_offset": 0.05,
+          "collision_rest_offset": 0.01,
+          "collision_approximation": "sdf",
+          "sdf_resolution": 512,
+          "sdf_enable_remeshing": false
         },
         {
           "model": "carrot.stl",
-          "model_height": 0.565,
+          "model_height": 0.735,
           "model_yaw": 11.7,
-          "offset_x": 0.05,
-          "offset_z": -0.04,
+          "offset_x": 0.18,
+          "offset_z": -0.12,
           "drop_offset": 0.72,
           "physics_profile": "silicone_firm",
           "material_preset": "silicone_cloudy",
-          "collision_contact_offset": 0.03,
+          "collision_contact_offset": 0.05,
           "collision_rest_offset": 0.01
         },
         {
           "model": "bird.stl",
-          "model_height": 0.523,
+          "model_height": 0.68,
           "model_yaw": -52.1,
-          "offset_x": 0.0,
-          "offset_z": 0.05,
+          "offset_x": -0.18,
+          "offset_z": 0.12,
           "drop_offset": 1.44,
           "physics_profile": "hard_white",
           "material_preset": "rough_white",
-          "collision_contact_offset": 0.03,
+          "collision_contact_offset": 0.05,
           "collision_rest_offset": 0.01
         }
-      ]
+      ],
+      "physics_substeps": 8,
+      "deformable_resolution": 36
     },
     {
       "id": "graffiti_warehouse_random_mixed_collision",

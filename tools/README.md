@@ -2,6 +2,7 @@
 
 - `scenes/`：正式的多场景 Isaac/PhysX 编排。
 - `blender/`：正式的 Blender Cycles 渲染和视频编码。
+- `physx/`：PhysX 碰撞表示的独立预览与诊断工具。
 - `audit/`：只读诊断与验收。
 - `probes/`：底层 API 探针。
 - `postprocess/`：独立后处理。

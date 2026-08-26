@@ -1,7 +1,11 @@
 """Create topology-capped STL variants for repeatable PhysX deformable cooking.
 
 Run inside Blender:
-  blender --background --python prepare_simulation_stls.py -- SOURCE_DIR OUTPUT_DIR [TARGET_FACES]
+  blender --background --python prepare_simulation_stls.py -- SOURCE_DIR OUTPUT_DIR [TARGET_FACES] [VOXEL_DIVISIONS] [MODEL_GLOB]
+
+VOXEL_DIVISIONS=0 preserves the source surface. A positive value first rebuilds
+the model as a single voxelized volume whose voxel size is max_extent / value.
+This is intended for PhysX tetrahedral cooking proxies, not render geometry.
 """
 
 from __future__ import annotations
@@ -20,6 +24,8 @@ if len(argv) < 2:
 SOURCE_DIR = Path(argv[0]).resolve()
 OUTPUT_DIR = Path(argv[1]).resolve()
 TARGET_FACES = int(argv[2]) if len(argv) >= 3 else 50000
+VOXEL_DIVISIONS = int(argv[3]) if len(argv) >= 4 else 0
+MODEL_GLOB = argv[4] if len(argv) >= 5 else "*.stl"
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
 
@@ -46,10 +52,22 @@ def process(source):
         bpy.ops.object.join()
     obj = bpy.context.view_layer.objects.active
     source_vertices, source_faces = mesh_counts(obj)
-    if source_faces > TARGET_FACES:
+    voxel_size = None
+    if VOXEL_DIVISIONS > 0:
+        if VOXEL_DIVISIONS < 8:
+            raise ValueError("VOXEL_DIVISIONS must be 0 or at least 8")
+        dimensions = tuple(float(value) for value in obj.dimensions)
+        voxel_size = max(dimensions) / float(VOXEL_DIVISIONS)
+        obj.data.remesh_voxel_size = voxel_size
+        obj.data.use_remesh_preserve_volume = True
+        bpy.ops.object.voxel_remesh()
+        triangulate = obj.modifiers.new(name="TriangulateVoxelSurface", type="TRIANGULATE")
+        bpy.ops.object.modifier_apply(modifier=triangulate.name)
+    pre_decimate_faces = mesh_counts(obj)[1]
+    if pre_decimate_faces > TARGET_FACES:
         modifier = obj.modifiers.new(name="SimulationTopologyCap", type="DECIMATE")
         modifier.decimate_type = "COLLAPSE"
-        modifier.ratio = max(0.001, TARGET_FACES / source_faces)
+        modifier.ratio = max(0.001, TARGET_FACES / pre_decimate_faces)
         modifier.use_collapse_triangulate = True
         bpy.ops.object.modifier_apply(modifier=modifier.name)
     bpy.ops.object.mode_set(mode="EDIT")
@@ -71,13 +89,16 @@ def process(source):
         "source_faces": source_faces,
         "output_vertices": output_vertices,
         "output_faces": output_faces,
-        "decimated": source_faces > TARGET_FACES,
+        "pre_decimate_faces": pre_decimate_faces,
+        "decimated": pre_decimate_faces > TARGET_FACES,
+        "voxel_divisions": VOXEL_DIVISIONS,
+        "voxel_size": voxel_size,
         "valid": output.is_file() and output.stat().st_size > 84 and output_faces > 0,
     }
 
 
 results = []
-for source in sorted(SOURCE_DIR.glob("*.stl")):
+for source in sorted(SOURCE_DIR.glob(MODEL_GLOB)):
     try:
         result = process(source)
         print(
@@ -97,6 +118,8 @@ for source in sorted(SOURCE_DIR.glob("*.stl")):
 manifest = {
     "valid": bool(results) and all(row["valid"] for row in results),
     "target_faces": TARGET_FACES,
+    "voxel_divisions": VOXEL_DIVISIONS,
+    "model_glob": MODEL_GLOB,
     "source_directory": str(SOURCE_DIR),
     "output_directory": str(OUTPUT_DIR),
     "models": results,

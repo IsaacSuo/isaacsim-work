@@ -1,6 +1,6 @@
 # 源代码架构与整理状态
 
-更新时间：2026-08-19
+更新时间：2026-08-26
 
 ## 当前代码线
 
@@ -68,18 +68,22 @@ configs/blender_camera_selections.json
 
 ### `soft_body_bounce_hero.py`
 
-- 当前约 2200 行；第一批纯几何裁剪逻辑已抽到 `soft_body/geometry.py`。
+- 当前约 3000 行，仍保留为兼容入口和 Isaac Sim 执行编排器。
+- 不依赖 Isaac Sim 的逻辑逐步放入 `soft_body/`，目前已包含配置归一化、几何裁剪和四面体质量计算。
 - 混合了参数解析、软体生成、环境材质修复、灯光恢复、局部精准碰撞、物理验收、截图和 Blender USD 导出。
-- 本轮只整理外围目录，不在缺少完整 Isaac 回归的情况下贸然拆分算法。
+- 拆分以纯函数和可单测边界为主，不改变根入口、命令行参数或已验收的物理默认值。
 
 推荐后续拆成：
 
 ```text
 soft_body/
-├── collision.py       # 网格清理、局部裁剪与精确碰撞
+├── config.py          # 物体配置归一化与基础约束
+├── geometry.py        # 局部裁剪等纯几何逻辑
+├── tet_quality.py     # Tet 体积、长宽比与反转统计
+├── collision.py       # 后续：网格清理与精确碰撞
 ├── environment.py     # USD 环境、材质与灯光恢复
 ├── deformable.py      # 软体层级和 PhysX 参数
-├── validation.py      # 穿透、压缩、反弹与自由坠落验收
+├── validation.py      # 后续：穿透、压缩、反弹与自由坠落验收
 └── blender_export.py  # 固定拓扑动画 USD
 ```
 
@@ -87,7 +91,7 @@ soft_body/
 
 ## 下一轮重构顺序
 
-1. 继续为配置解析增加纯 Python 单元测试。
-2. 运行 apartment、hospital、mountain 三类代表场景的缓存回归。
-3. 再抽取环境材质、灯光与 Blender USD 导出模块。
+1. 基于 `soft_body/tet_quality.py` 建立独立的穿透与 Tet 反转审核模块。
+2. 运行 garage、hospital、mountain 三类代表场景的缓存回归。
+3. 再抽取 Blender USD 导出；环境材质与灯光保持一组，避免过度拆分。
 4. 最后处理 `physx_realistic_liquid.py`，并保留旧任务可恢复性。

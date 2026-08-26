@@ -58,6 +58,20 @@ def parse_args():
         help="Output-relative or absolute path for the Blender animation cache.",
     )
     parser.add_argument(
+        "--debug-deformable-frame",
+        type=int,
+        default=None,
+        help=(
+            "One-based physics frame at which to export visual, collision-tet, "
+            "and simulation-tet surfaces for offline collision inspection."
+        ),
+    )
+    parser.add_argument(
+        "--debug-deformable-usd-name",
+        default="deformable_collision_debug.usdc",
+        help="Output-relative or absolute path for the single-frame debug USD.",
+    )
+    parser.add_argument(
         "--output",
         default=str(ROOT / "output" / "soft_body_elephant_hero"),
     )
@@ -90,7 +104,7 @@ def parse_args():
         "--body-config",
         default=None,
         help=(
-            "Optional JSON file containing a bodies array. Each body may define model, "
+            "Optional JSON file containing a bodies array. Each body may define model, cooking_model, "
             "model_height, model_yaw, spawn_x, drop_height, spawn_z, density, "
             "youngs_modulus, poissons_ratio, linear_damping, settling_damping, "
             "and restitution."
@@ -98,6 +112,12 @@ def parse_args():
     )
     parser.add_argument("--drop-height", type=float, default=3.0)
     parser.add_argument("--youngs-modulus", type=float, default=110000.0)
+    parser.add_argument(
+        "--deformable-youngs-modulus-scale",
+        type=float,
+        default=1.0,
+        help="Multiply configured Young's modulus for deformable bodies only.",
+    )
     parser.add_argument("--linear-damping", type=float, default=1.35)
     parser.add_argument("--settling-damping", type=float, default=4.0)
     parser.add_argument("--restitution", type=float, default=0.15)
@@ -116,6 +136,36 @@ def parse_args():
         help="Hero requires visible squash/rebound; generic accepts arbitrary model shapes after finite contact.",
     )
     parser.add_argument("--deformable-resolution", type=int, default=24)
+    parser.add_argument(
+        "--deformable-tetrahedral-simulation",
+        action="store_true",
+        help=(
+            "Generate a conforming tetrahedral simulation mesh instead of the "
+            "default voxel/hexahedral simulation mesh."
+        ),
+    )
+    parser.add_argument(
+        "--deformable-collision-remeshing",
+        action="store_true",
+        help="Enable PhysX cooking-source remeshing for the auto collision TetMesh.",
+    )
+    parser.add_argument(
+        "--deformable-remeshing-resolution",
+        type=int,
+        default=0,
+        help="Collision remeshing resolution; zero lets PhysX choose automatically.",
+    )
+    parser.add_argument(
+        "--deformable-target-triangle-count",
+        type=int,
+        default=0,
+        help="Target triangle count for the remeshed collision source; zero is automatic.",
+    )
+    parser.add_argument(
+        "--deformable-force-conforming",
+        action="store_true",
+        help="Force the generated volume collision mesh to conform to the remeshed surface.",
+    )
     parser.add_argument("--collision-contact-offset", type=float, default=0.03)
     parser.add_argument("--collision-rest-offset", type=float, default=0.01)
     parser.add_argument(
@@ -124,6 +174,15 @@ def parse_args():
         help="Fail validation unless at least one pair of configured bodies reaches contact proximity.",
     )
     parser.add_argument("--self-collision-filter-distance", type=float, default=0.05)
+    parser.add_argument(
+        "--deformable-self-collision",
+        action="store_true",
+        help=(
+            "Enable deformable self-collision. This is useful for thin or branched "
+            "models whose automatically cooked tetrahedra can otherwise fold through "
+            "the opposite side during a hard impact."
+        ),
+    )
     parser.add_argument("--environment-usd", default=None, help="Optional static environment USD added as a sublayer.")
     parser.add_argument(
         "--prebuilt-collision-usd",
@@ -405,7 +464,9 @@ import carb
 import numpy as np
 import omni.kit.app
 import omni.usd
+from soft_body.config import normalize_body_specs
 from soft_body.geometry import TriangleBoxCropper
+from soft_body.tet_quality import compute_tet_quality
 from omni.kit.viewport.utility import capture_viewport_to_file, get_active_viewport
 from omni.kit.material.library import CreateAndBindMdlMaterialFromLibrary
 from omni.physx import get_physx_simulation_interface
@@ -1436,6 +1497,108 @@ def export_blender_animation_usd(visual_meshes, snapshot_groups, output_path, fr
     }
 
 
+def export_deformable_debug_usd(stage, bodies, frame, output_path):
+    """Export world-space visual and cooked tet surfaces as a Z-up USD."""
+    output_path = Path(output_path)
+    if not output_path.is_absolute():
+        output_path = OUTPUT_DIR / output_path
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    if output_path.exists():
+        output_path.unlink()
+
+    debug_stage = Usd.Stage.CreateNew(str(output_path))
+    UsdGeom.SetStageUpAxis(debug_stage, UsdGeom.Tokens.z)
+    UsdGeom.SetStageMetersPerUnit(debug_stage, 1.0)
+    root = UsdGeom.Xform.Define(debug_stage, "/DeformableCollisionDebug")
+    debug_stage.SetDefaultPrim(root.GetPrim())
+    exported = []
+
+    def to_blender(world_points):
+        points = np.asarray(world_points, dtype=np.float32)
+        return np.column_stack((points[:, 0], -points[:, 2], points[:, 1])).astype(
+            np.float32, copy=False
+        )
+
+    def define_surface(name, points, face_indices, color):
+        mesh = UsdGeom.Mesh.Define(debug_stage, f"/DeformableCollisionDebug/{name}")
+        blender_points = to_blender(points)
+        indices = np.asarray(face_indices, dtype=np.int32).reshape(-1, 3)
+        mesh.CreatePointsAttr(Vt.Vec3fArray.FromNumpy(blender_points))
+        mesh.CreateFaceVertexCountsAttr([3] * len(indices))
+        mesh.CreateFaceVertexIndicesAttr(indices.reshape(-1).tolist())
+        mesh.CreateSubdivisionSchemeAttr().Set(UsdGeom.Tokens.none)
+        mesh.CreateDisplayColorPrimvar(UsdGeom.Tokens.constant).Set([Gf.Vec3f(*color)])
+        return {
+            "name": name,
+            "vertex_count": int(len(blender_points)),
+            "triangle_count": int(len(indices)),
+        }
+
+    def tet_quality(tet_mesh):
+        points = np.asarray(tet_mesh.GetPointsAttr().Get() or [], dtype=np.float64)
+        indices = np.asarray(
+            tet_mesh.GetTetVertexIndicesAttr().Get() or [], dtype=np.int64
+        ).reshape(-1, 4)
+        if not len(points) or not len(indices):
+            return None
+        bind_attr = tet_mesh.GetPrim().GetAttribute(
+            "deformablePose:default:omniphysics:points"
+        )
+        bind_points = np.asarray(bind_attr.Get() or [], dtype=np.float64) if bind_attr else np.empty((0, 3))
+        return compute_tet_quality(
+            points,
+            indices,
+            bind_points=bind_points if len(bind_points) == len(points) else None,
+        )
+
+    for body in bodies:
+        index = int(body["index"])
+        visual = body["visual"]
+        visual_snapshot = current_snapshot(stage, visual, body["root"], frame - 1)
+        visual_indices = visual.GetFaceVertexIndicesAttr().Get() or []
+        exported.append(
+            define_surface(
+                f"Body_{index:02d}_Visual",
+                visual_snapshot["world_points"],
+                visual_indices,
+                (0.95, 0.28, 0.04)
+                if body["physics_kind"] == "deformable"
+                else (0.18, 0.30, 0.48),
+            )
+        )
+        if body["physics_kind"] != "deformable":
+            continue
+        root_matrix = UsdGeom.Xformable(body["root"]).ComputeLocalToWorldTransform(
+            Usd.TimeCode.Default()
+        )
+        for label, path, color in (
+            ("CollisionTetSurface", body["collision_path"], (1.0, 0.0, 0.65)),
+            ("SimulationTetSurface", body["sim_path"], (0.0, 0.85, 1.0)),
+        ):
+            tet_mesh = UsdGeom.TetMesh.Get(stage, path)
+            local_points = tet_mesh.GetPointsAttr().Get() or []
+            surface_faces = tet_mesh.GetSurfaceFaceVertexIndicesAttr().Get() or []
+            if not surface_faces:
+                surface_faces = UsdGeom.TetMesh.ComputeSurfaceFaces(
+                    tet_mesh, Usd.TimeCode.Default()
+                )
+            if not local_points or not surface_faces:
+                raise RuntimeError(f"Cooked {label} has no exportable surface: {path}")
+            world_points = transform_points(
+                np.asarray(local_points, dtype=np.float64), root_matrix
+            )
+            surface_report = define_surface(
+                f"Body_{index:02d}_{label}", world_points, surface_faces, color
+            )
+            surface_report["tet_quality"] = tet_quality(tet_mesh)
+            exported.append(surface_report)
+
+    debug_stage.GetRootLayer().Save()
+    if not output_path.is_file() or output_path.stat().st_size <= 0:
+        raise RuntimeError(f"Deformable debug USD was not written: {output_path}")
+    return {"path": str(output_path), "frame": int(frame), "meshes": exported}
+
+
 def snapshot_summary(snapshot):
     return {
         "frame": int(snapshot["frame"]),
@@ -1622,6 +1785,8 @@ def create_deformable_body(stage, index, spec, visual_material, physics_material
         visual_path = root_path.AppendChild("Visual")
         sim_path = root_path.AppendChild("SimulationMesh")
         collision_path = root_path.AppendChild("CollisionMesh")
+    if ARGS.deformable_tetrahedral_simulation:
+        collision_path = sim_path
 
     model_path = Path(spec["model"])
     if not model_path.is_file():
@@ -1641,20 +1806,63 @@ def create_deformable_body(stage, index, spec, visual_material, physics_material
     visual.CreateSubdivisionSchemeAttr().Set(UsdGeom.Tokens.none)
     bind_visual_material(visual.GetPrim(), visual_material)
 
+    cooking_model_path = None
+    cooking_src_path = visual_path
+    if spec.get("cooking_model"):
+        cooking_model_path = Path(spec["cooking_model"])
+        if not cooking_model_path.is_file():
+            raise FileNotFoundError(f"Deformable cooking model not found: {cooking_model_path}")
+        cooking_points, cooking_triangles = load_binary_stl(
+            cooking_model_path,
+            spec["model_height"],
+            model_yaw=spec["model_yaw"],
+            scale_mode=ARGS.model_scale_mode,
+        )
+        cooking_src_path = root_path.AppendChild("CookingSource")
+        cooking_src = UsdGeom.Mesh.Define(stage, cooking_src_path)
+        cooking_src.CreatePointsAttr(
+            [Gf.Vec3f(*map(float, point)) for point in cooking_points]
+        )
+        cooking_src.CreateFaceVertexCountsAttr([3] * len(cooking_triangles))
+        cooking_src.CreateFaceVertexIndicesAttr(cooking_triangles.reshape(-1).tolist())
+        cooking_src.CreateSubdivisionSchemeAttr().Set(UsdGeom.Tokens.none)
+        cooking_src.CreateVisibilityAttr().Set(UsdGeom.Tokens.invisible)
+        cooking_src.CreatePurposeAttr().Set(UsdGeom.Tokens.guide)
+        print(
+            f"[deformable-cooking-source] body={index} model={cooking_model_path} "
+            f"vertices={len(cooking_points)} triangles={len(cooking_triangles)}"
+        )
+
     hierarchy_created = deformableUtils.create_auto_volume_deformable_hierarchy(
         stage,
         root_path,
         sim_path,
         collision_path,
-        visual_path,
-        True,
-        False,
+        cooking_src_path,
+        not ARGS.deformable_tetrahedral_simulation,
+        ARGS.deformable_collision_remeshing,
         True,
     )
     if not hierarchy_created:
         raise RuntimeError(f"create_auto_volume_deformable_hierarchy returned False for body {index}")
     root_prim = root.GetPrim()
-    root_prim.GetAttribute("physxDeformableBody:resolution").Set(ARGS.deformable_resolution)
+    resolution_attr = root_prim.GetAttribute("physxDeformableBody:resolution")
+    if resolution_attr and resolution_attr.IsValid():
+        resolution_attr.Set(ARGS.deformable_resolution)
+    if ARGS.deformable_collision_remeshing:
+        root_prim.GetAttribute(
+            "physxDeformableBody:autoDeformableMeshSimplificationEnabled"
+        ).Set(True)
+        root_prim.GetAttribute("physxDeformableBody:remeshingEnabled").Set(True)
+        root_prim.GetAttribute("physxDeformableBody:remeshingResolution").Set(
+            int(ARGS.deformable_remeshing_resolution)
+        )
+        root_prim.GetAttribute("physxDeformableBody:targetTriangleCount").Set(
+            int(ARGS.deformable_target_triangle_count)
+        )
+        root_prim.GetAttribute("physxDeformableBody:forceConforming").Set(
+            bool(ARGS.deformable_force_conforming)
+        )
     if not root_prim.ApplyAPI("PhysxBaseDeformableBodyAPI"):
         raise RuntimeError(f"Failed to apply PhysxBaseDeformableBodyAPI to body {index}")
     root_prim.GetAttribute("physxDeformableBody:linearDamping").Set(float(spec["linear_damping"]))
@@ -1663,7 +1871,9 @@ def create_deformable_body(stage, index, spec, visual_material, physics_material
     )
     root_prim.GetAttribute("physxDeformableBody:solverPositionIterationCount").Set(24)
     root_prim.GetAttribute("physxDeformableBody:enableSpeculativeCCD").Set(True)
-    root_prim.GetAttribute("physxDeformableBody:selfCollision").Set(False)
+    root_prim.GetAttribute("physxDeformableBody:selfCollision").Set(
+        bool(ARGS.deformable_self_collision)
+    )
     root_prim.GetAttribute("physxDeformableBody:selfCollisionFilterDistance").Set(
         ARGS.self_collision_filter_distance
     )
@@ -1693,6 +1903,8 @@ def create_deformable_body(stage, index, spec, visual_material, physics_material
     return {
         "index": index,
         "model": str(model_path),
+        "cooking_model": str(cooking_model_path) if cooking_model_path else None,
+        "cooking_source_path": str(cooking_src_path),
         "model_height": float(spec["model_height"]),
         "model_yaw": float(spec["model_yaw"]),
         "spawn": tuple(float(value) for value in spec["spawn"]),
@@ -1707,6 +1919,13 @@ def create_deformable_body(stage, index, spec, visual_material, physics_material
         "collision_approximation": "tetrahedral",
         "sdf_resolution": None,
         "sdf_enable_remeshing": None,
+        "collision_remeshing": bool(ARGS.deformable_collision_remeshing),
+        "tetrahedral_simulation": bool(ARGS.deformable_tetrahedral_simulation),
+        "remeshing_resolution": int(ARGS.deformable_remeshing_resolution),
+        "target_triangle_count": int(ARGS.deformable_target_triangle_count),
+        "force_conforming": bool(ARGS.deformable_force_conforming),
+        "self_collision": bool(ARGS.deformable_self_collision),
+        "self_collision_filter_distance": float(ARGS.self_collision_filter_distance),
         "physics_kind": "deformable",
         "physics_profile": spec.get("physics_profile"),
         "material_preset": spec.get("material_preset"),
@@ -2005,19 +2224,10 @@ def build_scene():
     if ARGS.body_config:
         body_config_path = Path(ARGS.body_config).resolve()
         body_config = json.loads(body_config_path.read_text(encoding="utf-8"))
-        body_specs = body_config.get("bodies") or []
-        if not body_specs:
-            raise ValueError(f"Body config has no bodies: {body_config_path}")
-        for spec in body_specs:
-            spec["spawn"] = (
-                float(spec.pop("spawn_x")),
-                float(spec.pop("drop_height")),
-                float(spec.pop("spawn_z")),
-            )
-            spec["model_height"] = float(spec["model_height"])
-            spec["model_yaw"] = float(spec.get("model_yaw", 0.0))
-            for key, value in defaults.items():
-                spec[key] = float(spec.get(key, value))
+        try:
+            body_specs = normalize_body_specs(body_config.get("bodies") or [], defaults)
+        except ValueError as exc:
+            raise ValueError(f"Invalid body config {body_config_path}: {exc}") from exc
     else:
         body_specs = [
             {
@@ -2044,6 +2254,10 @@ def build_scene():
         physics_kind = spec.get("physics_kind", "deformable")
         if physics_kind not in {"deformable", "rigid"}:
             raise ValueError(f"Unsupported physics_kind for body {index}: {physics_kind}")
+        if physics_kind == "deformable":
+            if ARGS.deformable_youngs_modulus_scale <= 0.0:
+                raise ValueError("--deformable-youngs-modulus-scale must be positive")
+            spec["youngs_modulus"] *= float(ARGS.deformable_youngs_modulus_scale)
         physics_material_path = Sdf.Path(f"/World/Looks/BodyPhysics_{index:02d}")
         UsdShade.Material.Define(stage, physics_material_path)
         if physics_kind == "deformable" and not deformableUtils.add_deformable_material(
@@ -2283,6 +2497,12 @@ def main():
 
         simulation_points_count = None
         simulation_points_per_body = None
+        if ARGS.debug_deformable_frame is not None and not (
+            1 <= ARGS.debug_deformable_frame <= ARGS.frames
+        ):
+            raise ValueError(
+                "--debug-deformable-frame must be within the simulated frame range"
+            )
         for frame in range(ARGS.frames):
             simulation.simulate(1.0 / 60.0, frame / 60.0)
             simulation.fetch_results()
@@ -2313,6 +2533,22 @@ def main():
                     else:
                         simulation_points_per_body.append(0)
                 simulation_points_count = sum(simulation_points_per_body)
+            if ARGS.debug_deformable_frame == frame + 1:
+                debug_export = export_deformable_debug_usd(
+                    stage,
+                    bodies,
+                    frame + 1,
+                    ARGS.debug_deformable_usd_name,
+                )
+                report["deformable_collision_debug"] = debug_export
+                debug_report_path = Path(debug_export["path"]).with_suffix(".json")
+                debug_report_path.write_text(
+                    json.dumps(debug_export, indent=2), encoding="utf-8"
+                )
+                print(
+                    f"[deformable-debug] frame={frame + 1} "
+                    f"exported={debug_export['path']} report={debug_report_path}"
+                )
             if frame % 15 == 0 or frame == ARGS.frames - 1:
                 print(
                     f"[physics] frame={frame:03d}/{ARGS.frames - 1} "

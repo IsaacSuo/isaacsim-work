@@ -22,6 +22,16 @@ class RepositoryLayoutTests(unittest.TestCase):
             with self.subTest(path=relative_path):
                 self.assertTrue((ROOT / relative_path).is_file())
 
+    def test_soft_body_core_helpers_are_package_modules(self):
+        expected = (
+            "soft_body/config.py",
+            "soft_body/geometry.py",
+            "soft_body/tet_quality.py",
+        )
+        for relative_path in expected:
+            with self.subTest(path=relative_path):
+                self.assertTrue((ROOT / relative_path).is_file())
+
     def test_all_camera_scenes_have_physics_config(self):
         scenes = json.loads(
             (ROOT / "configs/scene_experiments.json").read_text(encoding="utf-8")

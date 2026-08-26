@@ -53,6 +53,13 @@ def physics_cache_matches(report, frame_count, body_config, collision_asset=None
     expected_bodies = body_config["bodies"]
     if not report.get("valid") or report.get("physics_frames") != frame_count:
         return False
+    if report.get("physics_substeps") != body_config["physics_substeps"]:
+        return False
+    if (
+        (report.get("physics_material") or {}).get("deformable_resolution")
+        != body_config["deformable_resolution"]
+    ):
+        return False
     if collision_asset is not None:
         if not recorded_path_matches(report.get("prebuilt_collision_usd"), collision_asset):
             return False
@@ -170,14 +177,28 @@ def build_body_config(experiment, scene, profiles, collision_policies):
         physics_kind = "rigid" if expected_behavior == "hard" else "deformable"
         if physics_kind == "rigid":
             collision_policy = collision_policies[body["model"]]
-            collision_approximation = collision_policy["approximation"]
+            collision_approximation = body.get(
+                "collision_approximation", collision_policy["approximation"]
+            )
+            if collision_approximation not in {
+                "convexDecomposition",
+                "sdf",
+            }:
+                raise ValueError(
+                    f"Unsupported body collision approximation: {collision_approximation}"
+                )
             sdf_resolution = (
-                int(collision_policy["sdf_resolution"])
+                int(body.get("sdf_resolution", collision_policy.get("sdf_resolution", 384)))
                 if collision_approximation == "sdf"
                 else None
             )
             sdf_enable_remeshing = (
-                bool(collision_policy.get("sdf_enable_remeshing", False))
+                bool(
+                    body.get(
+                        "sdf_enable_remeshing",
+                        collision_policy.get("sdf_enable_remeshing", False),
+                    )
+                )
                 if collision_approximation == "sdf"
                 else None
             )
@@ -209,7 +230,11 @@ def build_body_config(experiment, scene, profiles, collision_policies):
                 "material_preset": body["material_preset"],
             }
         )
-    return {"bodies": bodies}
+    return {
+        "physics_substeps": int(experiment.get("physics_substeps", 4)),
+        "deformable_resolution": int(experiment.get("deformable_resolution", 24)),
+        "bodies": bodies,
+    }
 
 
 def run_physics(args, experiment, scene, run_dir, profiles, collision_policies):
@@ -236,7 +261,8 @@ def run_physics(args, experiment, scene, run_dir, profiles, collision_policies):
     primary = body_config["bodies"][0]
     command = [
         str(ISAAC_PYTHON), str(HERO_SCRIPT),
-        "--frames", str(args.frames), "--substeps", "4",
+        "--frames", str(args.frames),
+        "--substeps", str(body_config["physics_substeps"]),
         "--width", "480", "--height", "480", "--renderer", "RaytracedLighting",
         "--output", str(physics_dir),
         "--model", primary["model"],
@@ -252,7 +278,7 @@ def run_physics(args, experiment, scene, run_dir, profiles, collision_policies):
         "--density", str(primary["density"]),
         "--expected-behavior", "soft",
         "--validation-profile", "generic",
-        "--deformable-resolution", "24",
+        "--deformable-resolution", str(body_config["deformable_resolution"]),
         "--environment-usd", str(scene["usd"]),
         "--environment-ground-only",
         "--support-top-y", str(scene["support_y"]),

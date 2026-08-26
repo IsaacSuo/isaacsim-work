@@ -119,12 +119,41 @@ CURATED_PRODUCTION_OVERRIDES = {
         2: {"offset_z": 0.18, "collision_contact_offset": 0.05},
     },
     "elevator": {1: {"offset_x": 0.35}},
+    "garage": {
+        0: {
+            "model_height": 0.655,
+            "collision_contact_offset": 0.05,
+            "collision_approximation": "sdf",
+            "sdf_resolution": 512,
+            "sdf_enable_remeshing": False,
+        },
+        # The enlarged bodies are easier to resolve both visually and with the
+        # deformable collision mesh while retaining the intended interactions.
+        1: {
+            "model_height": 0.735,
+            "offset_x": 0.18,
+            "offset_z": -0.12,
+            "collision_contact_offset": 0.05,
+        },
+        2: {
+            "model_height": 0.680,
+            "offset_x": -0.18,
+            "offset_z": 0.12,
+            "collision_contact_offset": 0.05,
+        },
+    },
     "warehouse": {
         0: {
             "collision_contact_offset": 0.12,
             "collision_rest_offset": 0.10,
         },
     },
+}
+
+CURATED_EXPERIMENT_OVERRIDES = {
+    # Thin tree branches and a deformable body collide in a compact three-body
+    # stack. Use finer deformable sampling and temporal resolution here.
+    "garage": {"physics_substeps": 8, "deformable_resolution": 36},
 }
 
 
@@ -179,6 +208,9 @@ def generate(seed: int):
             scene_overrides = CURATED_PRODUCTION_OVERRIDES.get(experiment["scene"], {})
             for body_index, body_overrides in scene_overrides.items():
                 experiment["bodies"][body_index].update(body_overrides)
+            experiment.update(
+                CURATED_EXPERIMENT_OVERRIDES.get(experiment["scene"], {})
+            )
     return {
         "seed": seed,
         "selection_policy": "shuffled_deck_without_replacement_within_scene",
