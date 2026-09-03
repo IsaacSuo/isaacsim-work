@@ -21,5 +21,13 @@ __pycache__/
 *.tmp
 *.part
 
+# Platform-specific native bridge build products.  Keep the C++ sources and
+# test geometry in Git; every target machine must rebuild its own binary.
+experiments/mountain_waterfall/native_bridge/build/
+experiments/mountain_waterfall/native_bridge/bin/
+*.lib
+*.exp
+*.pyd
+
 # Historical ad-hoc copies are kept locally, not as active source
 *.bak_*

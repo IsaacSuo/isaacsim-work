@@ -466,14 +466,19 @@ def final_state_camera(scene, experiment, physics_report):
     motion_maximum = [
         max(float(state["maximum"][axis]) for state in motion_states) for axis in range(3)
     ]
-    motion_center = tuple(
-        (motion_minimum[axis] + motion_maximum[axis]) * 0.5 for axis in range(3)
-    )
-    # Favor the final resting composition without sacrificing the collision arc.
-    framed_target = tuple(
-        0.65 * final_center[axis] + 0.35 * motion_center[axis] for axis in range(3)
-    )
-    view_offset = tuple(float(eye[axis]) - float(target[axis]) for axis in range(3))
+    # The final landing layout owns the composition.  The complete motion
+    # bounds below only determine how far the camera must retreat, so an early
+    # high drop cannot pull the camera target away from the settled objects.
+    framed_target = final_center
+    if scene["name"] == "bedroom":
+        # Keep the validated clear bedside direction, but derive both the
+        # target and the final eye position from this run's measured bounds.
+        # The authored negative-Z direction looks through the bed frame.
+        view_offset = (-5.2, 2.8, 0.0)
+        camera_policy = "final_body_bounds_clear_bedside"
+    else:
+        view_offset = tuple(float(eye[axis]) - float(target[axis]) for axis in range(3))
+        camera_policy = "final_body_bounds"
     current_distance = math.sqrt(sum(value * value for value in view_offset))
     if current_distance <= 1e-6:
         return eye, target, "fixed_degenerate_view"
@@ -519,7 +524,7 @@ def final_state_camera(scene, experiment, physics_report):
     framed_eye = tuple(
         framed_target[axis] + view_direction[axis] * framed_distance for axis in range(3)
     )
-    return framed_eye, framed_target, "final_body_bounds"
+    return framed_eye, framed_target, camera_policy
 
 
 def run_render(args, experiment, scene, physics_dir, physics_report, frame_count):

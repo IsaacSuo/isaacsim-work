@@ -1,0 +1,34 @@
+{
+  "schema": 1,
+  "product": "whitewater_scene_contract",
+  "name": "swamp_sphere_impact",
+  "coordinate_system": {
+    "axes": "xyz",
+    "handedness": "right",
+    "metres_per_unit": 1.0
+  },
+  "physics": {
+    "gravity": [0.0, -9.81, 0.0]
+  },
+  "colliders": [
+    {
+      "id": "drop_sphere",
+      "shape": "sphere",
+      "roles": ["solid", "dynamic", "churn_source"],
+      "parameters": {
+        "radius": 0.08
+      },
+      "motion": {
+        "kind": "source_matrix",
+        "matrix_layout": "row_translation",
+        "source_field": "sphere_transform"
+      }
+    }
+  ],
+  "metadata": {
+    "scene_family": "shallow_water_rigid_impact",
+    "status": "migration_reference",
+    "terrain_adapter": "external_heightfield_argument",
+    "notes": "The terrain remains an explicit adapter input in scene-contract phase 1."
+  }
+}

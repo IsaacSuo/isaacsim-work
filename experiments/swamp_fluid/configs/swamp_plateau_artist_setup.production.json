@@ -1,0 +1,63 @@
+{
+  "schema": 1,
+  "product": "whitewater_v6_production_configuration",
+  "name": "swamp_plateau_artist_setup_v1",
+  "paths": {
+    "scene_contract": "swamp_sphere_impact_open_terrain.scene.json",
+    "flow_profile": "flow_profiles/impact.json",
+    "source_manifest": "../../../output/swamp_fluid_preview/whitewater_v2_source_impact_1p5s/whitewater_source/manifest.json",
+    "source_directory": "../../../output/swamp_fluid_preview/whitewater_v2_source_impact_1p5s/whitewater_source",
+    "domain_manifest": "../../../output/swamp_fluid_preview/whitewater_v6_domain_partition_phase6_s32_120_stride8_v4_hysteretic/domain_manifest.json",
+    "particle_directory": "../../../output/swamp_fluid_preview/whitewater_v2_source_impact_1p5s/whitewater_source",
+    "blender_scene": "Y:/scenes/swamp.blend",
+    "hdri": "Y:/scenes/HDRI/bryanston_park_sunrise_8k.exr",
+    "output_root": "../../../output/swamp_fluid_preview/whitewater_v6_artist_setup_swamp_v1",
+    "isaac_python": "Y:/isaacsim/kit/python/python.exe",
+    "splashsurf_executable": "Y:/tools/pysplashsurf/.venv/Scripts/pysplashsurf.exe",
+    "blender_executable": "D:/Program Files (x86)/Blender/blender.exe",
+    "ffmpeg_executable": "D:/Program Files (x86)/ffmpeg/bin/ffmpeg.exe"
+  },
+  "physical": {
+    "particle_spacing_m": 0.008,
+    "water_level_m": -1.380990319252014
+  },
+  "splashsurf": {
+    "workers": 1,
+    "threads_per_worker": 16,
+    "particle_radius_m": 0.0049628039271952,
+    "smoothing_length": 1.61199195401647,
+    "cube_size": 0.604496982756176,
+    "surface_threshold": 0.6,
+    "mesh_smoothing_iterations": 10,
+    "normal_smoothing_iterations": 10,
+    "shoreline_mode": "terrain",
+    "shoreline_reference_ply": null,
+    "minimum_particle_layers": 8,
+    "shoreline_erosion_cells": 4,
+    "terrain_raster_bounds_xz": null,
+    "terrain_raster_axis_dtype": "float64"
+  },
+  "whitewater": {
+    "water_body_id": "water_body_000",
+    "source_samples": [32, 40, 48, 56, 64, 72, 80, 88, 96, 104, 112, 120],
+    "water_body_seed_xz": [-0.73, 0.78],
+    "splash_retention_radius_m": 0.4
+  },
+  "render": {
+    "camera_preset": "closeup",
+    "resolution": 520,
+    "samples": 24,
+    "fps": 15.0,
+    "hdri_strength": 0.95,
+    "micro_pixel_radius": 0.4,
+    "hero_pixel_radius": 1.35
+  },
+  "manual_setup": {
+    "terrain_selected": true,
+    "water_body_domain_reviewed": true,
+    "collider_roles_reviewed": true,
+    "shoreline_reviewed": true,
+    "camera_reviewed": true,
+    "notes": "Artist-reviewed swamp impact setup. Terrain shoreline is static and derived from the selected open terrain; no per-frame particle shoreline mask."
+  }
+}

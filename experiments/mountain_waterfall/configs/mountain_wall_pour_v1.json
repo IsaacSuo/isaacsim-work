@@ -1,0 +1,56 @@
+{
+  "schema": 1,
+  "product": "physx_primary_liquid_pour_source",
+  "name": "mountain_wall_pour_v1",
+  "coordinate_system": {
+    "axes": "xyz",
+    "handedness": "right",
+    "up_axis": "y",
+    "metres_per_unit": 1.0
+  },
+  "outlet": {
+    "shape": "ellipse",
+    "radii_m": [0.075, 0.135],
+    "pattern": "staggered_hex",
+    "stable_warp_fraction": 0.12
+  },
+  "flow": {
+    "rate_m3_s": 0.06,
+    "speed_m_s": 2.0,
+    "velocity_profile": {
+      "kind": "power_law",
+      "edge_fraction": 0.68,
+      "exponent": 1.4
+    },
+    "tangent_perturbation_m_s": 0.04,
+    "seed": 20260901
+  },
+  "timing": {
+    "start_seconds": 0.0,
+    "stop_seconds": 1.2
+  },
+  "motion": {
+    "kind": "keyframed_rigid",
+    "interpolation": "linear_orthonormalized",
+    "keyframes": [
+      {
+        "time_seconds": 0.0,
+        "centre": [3.25, 1.45, 1.7],
+        "normal": [0.96, -0.28, 0.0],
+        "up_hint": [0.0, 1.0, 0.0]
+      },
+      {
+        "time_seconds": 1.2,
+        "centre": [3.25, 1.45, 1.7],
+        "normal": [0.96, -0.28, 0.0],
+        "up_hint": [0.0, 1.0, 0.0]
+      }
+    ]
+  },
+  "metadata": {
+    "scene": "Y:/scenes/mountain/mountain.usdc",
+    "adapter": "artist_assisted_static_off_camera_pour",
+    "status": "requires_measured_wall_target_before_physx",
+    "notes": "Initial aim only; the real wall contact ROI must be derived from the mountain geometry and audited before acceptance."
+  }
+}

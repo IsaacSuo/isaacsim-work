@@ -1,0 +1,54 @@
+{
+  "schema": 1,
+  "product": "whitewater_v6_flow_profile",
+  "name": "shallow_river",
+  "flow_family": "continuous_free_surface_channel",
+  "physics": {
+    "density_kg_m3": 997.0,
+    "surface_tension_n_m": 0.072
+  },
+  "emission": {
+    "conditioning_sigma_cells": 1.25,
+    "surface_half_width_cells": 1.75,
+    "churn_depth_cells": 3.0,
+    "churn_source_influence_cells": 6.0,
+    "thresholds": {
+      "crest_curvature": [0.08, 0.65],
+      "spray_outward_velocity": [0.18, 0.90],
+      "spray_outward_acceleration": [0.80, 5.00],
+      "gravity_facing_normal": [0.00, 0.80],
+      "entrainment_convergence": [0.025, 0.20],
+      "entrainment_rotation": [0.025, 0.22],
+      "entrainment_inward_velocity": [0.08, 0.55],
+      "churn_inward_acceleration": [0.80, 8.00],
+      "churn_agitation": [0.05, 0.40]
+    },
+    "spray_impulse_weight": 0.35,
+    "entrainment_inward_weight": 0.70,
+    "channel_gains": {
+      "spray": 0.35,
+      "entrained_air": 0.80,
+      "churn": 0.0
+    },
+    "churn_source_policy": "disabled",
+    "attack_seconds": 0.080,
+    "decay_seconds": 0.450
+  },
+  "event": {
+    "gate": "always",
+    "baseline_quantile": 0.999,
+    "baseline_multiplier": 1.10,
+    "explicit_noise_floors": {
+      "spray": 0.01,
+      "entrained_air": 0.01,
+      "churn": 0.0
+    }
+  },
+  "birth": {
+    "rate_density_m3_s": {
+      "spray": 350000.0,
+      "entrained_air": 1200000.0,
+      "churn": 100000.0
+    }
+  }
+}

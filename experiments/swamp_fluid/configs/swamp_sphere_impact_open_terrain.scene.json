@@ -1,0 +1,56 @@
+{
+  "schema": 2,
+  "product": "whitewater_scene_contract",
+  "name": "swamp_sphere_impact_open_terrain",
+  "coordinate_system": {
+    "axes": "xyz",
+    "handedness": "right",
+    "metres_per_unit": 1.0
+  },
+  "physics": {
+    "gravity": [0.0, -9.81, 0.0]
+  },
+  "terrain": {
+    "id": "swamp_basin_top_shell",
+    "representation": "open_triangle_mesh",
+    "parameters": {
+      "path": "../../../output/swamp_fluid_preview/whitewater_v6_open_terrain_swamp_supported_component_phase3/selected_open_terrain.obj",
+      "sha256": "4799e585e185efc3d9748c3b534d23260ab219c2ae9977739abf1fd3b6d51a10",
+      "selection_path": "../../../output/swamp_fluid_preview/whitewater_v6_open_terrain_swamp_supported_component_phase3/selection_record.json",
+      "selection_sha256": "a35013ddb1cba8bf2540f124f3a105fcc491926147d885c9667b0ebd2d8eabd0",
+      "normal_convention": "toward_fluid",
+      "require_open": true
+    },
+    "motion": {
+      "kind": "static",
+      "matrix_layout": "row_translation",
+      "transform": [
+        [1.0, 0.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0, 0.0],
+        [0.0, 0.0, 1.0, 0.0],
+        [0.0, 0.0, 0.0, 1.0]
+      ]
+    }
+  },
+  "colliders": [
+    {
+      "id": "drop_sphere",
+      "shape": "sphere",
+      "roles": ["solid", "dynamic", "churn_source"],
+      "parameters": {
+        "radius": 0.08
+      },
+      "motion": {
+        "kind": "source_matrix",
+        "matrix_layout": "row_translation",
+        "source_field": "sphere_transform"
+      }
+    }
+  ],
+  "metadata": {
+    "scene_family": "shallow_water_rigid_impact",
+    "status": "open_terrain_phase3_regression",
+    "terrain_adapter": "audited_open_triangle_mesh",
+    "notes": "The historical 62 underwater faces seed one connected 112-face local shell including the dry banks."
+  }
+}

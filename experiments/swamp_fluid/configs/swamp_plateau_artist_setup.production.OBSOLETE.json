@@ -1,0 +1,9 @@
+{
+  "schema": 1,
+  "product": "obsolete_configuration_marker",
+  "obsolete": true,
+  "configuration": "swamp_plateau_artist_setup.production.json",
+  "replacement": "swamp_plateau_artist_setup_v2.production.json",
+  "reason": "Version 1 used a renderer-specific camera preset and did not expose Plateau, marker and pending-proxy inputs. Version 2 uses an explicit artist-reviewed camera pose and source-sample surface indexing.",
+  "data_deleted": false
+}

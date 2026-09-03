@@ -1,0 +1,54 @@
+{
+  "schema": 1,
+  "product": "whitewater_v6_flow_profile",
+  "name": "waterfall_plunge",
+  "flow_family": "free_falling_sheet_and_plunge_pool",
+  "physics": {
+    "density_kg_m3": 997.0,
+    "surface_tension_n_m": 0.072
+  },
+  "emission": {
+    "conditioning_sigma_cells": 0.85,
+    "surface_half_width_cells": 1.5,
+    "churn_depth_cells": 6.0,
+    "churn_source_influence_cells": 12.0,
+    "thresholds": {
+      "crest_curvature": [0.035, 0.40],
+      "spray_outward_velocity": [0.06, 0.45],
+      "spray_outward_acceleration": [0.35, 3.00],
+      "gravity_facing_normal": [-0.80, 0.30],
+      "entrainment_convergence": [0.02, 0.18],
+      "entrainment_rotation": [0.03, 0.25],
+      "entrainment_inward_velocity": [0.04, 0.40],
+      "churn_inward_acceleration": [0.35, 5.50],
+      "churn_agitation": [0.02, 0.22]
+    },
+    "spray_impulse_weight": 0.80,
+    "entrainment_inward_weight": 0.85,
+    "channel_gains": {
+      "spray": 1.20,
+      "entrained_air": 1.15,
+      "churn": 1.20
+    },
+    "churn_source_policy": "optional_tagged_source",
+    "attack_seconds": 0.025,
+    "decay_seconds": 0.220
+  },
+  "event": {
+    "gate": "always",
+    "baseline_quantile": 0.999,
+    "baseline_multiplier": 1.10,
+    "explicit_noise_floors": {
+      "spray": 0.0,
+      "entrained_air": 0.0,
+      "churn": 0.0
+    }
+  },
+  "birth": {
+    "rate_density_m3_s": {
+      "spray": 2200000.0,
+      "entrained_air": 2600000.0,
+      "churn": 6500000.0
+    }
+  }
+}

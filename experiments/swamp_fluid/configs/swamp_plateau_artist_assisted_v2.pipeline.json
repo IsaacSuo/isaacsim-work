@@ -1,0 +1,137 @@
+{
+  "schema": 1,
+  "product": "whitewater_v6_pipeline",
+  "name": "swamp_plateau_artist_assisted_v2",
+  "run_directory": "../../../output/swamp_fluid_preview/whitewater_v6_pipeline_artist_assisted_swamp_v2",
+  "production_configuration": "../../../output/swamp_fluid_preview/whitewater_v6_artist_setup_swamp_v2/resolved_config.json",
+  "dependencies": [
+    {"id": "isaac_python", "kind": "executable", "path": "Y:/isaacsim/kit/python/python.exe"},
+    {"id": "splashsurf", "kind": "executable", "path": "Y:/tools/pysplashsurf/.venv/Scripts/pysplashsurf.exe"},
+    {"id": "blender", "kind": "executable", "path": "D:/Program Files (x86)/Blender/blender.exe"}
+  ],
+  "stages": [
+    {
+      "id": "artist_setup",
+      "depends_on": [],
+      "inputs": [
+        "swamp_plateau_artist_setup_v2.production.json",
+        "../../../output/swamp_fluid_preview/whitewater_v6_artist_setup_swamp_v2/preflight_report.json"
+      ],
+      "producers": ["../resolve_whitewater_production_config.py", "../whitewater/production_config.py", "../preflight_whitewater_production_config.py"],
+      "external": true,
+      "action": {
+        "kind": "verify_json",
+        "path": "../../../output/swamp_fluid_preview/whitewater_v6_artist_setup_swamp_v2/preflight_report.json",
+        "product": "whitewater_v6_artist_setup_preflight",
+        "success_pointer": "/valid"
+      }
+    },
+    {
+      "id": "surface_reconstruction",
+      "depends_on": ["artist_setup"],
+      "inputs": [
+        "swamp_sphere_impact_open_terrain.scene.json",
+        "../../../output/swamp_fluid_preview/whitewater_v6_domain_partition_phase6_s32_120_stride8_v4_hysteretic/domain_manifest.json"
+      ],
+      "producers": ["../build_splashsurf_sequence.py", "../clip_splashsurf_free_surface.py", "../whitewater/terrain_fields.py"],
+      "external": false,
+      "action": {
+        "kind": "production_command",
+        "command": "splashsurf",
+        "output_argument_index": 4,
+        "success": {
+          "kind": "verify_json",
+          "path": "{stage_cache}/splashsurf_manifest.json",
+          "success_pointer": "/state/complete"
+        }
+      }
+    },
+    {
+      "id": "surface_gate",
+      "depends_on": ["surface_reconstruction"],
+      "inputs": [
+        "../../../output/swamp_fluid_preview/whitewater_v6_splashsurf_phase6_auto_domain_s120_v3_hysteretic/splashsurf_manifest.json",
+        "../../../output/swamp_fluid_preview/splashsurf_10s_8mm/splashsurf/surface/surface_0030_clipped.obj",
+        "../../../output/swamp_fluid_preview/whitewater_v2_source_impact_1p5s/whitewater_source/manifest.json"
+      ],
+      "producers": ["../audit_whitewater_v6_production_surface_gate.py"],
+      "external": false,
+      "action": {
+        "kind": "command",
+        "cwd": "../../..",
+        "argv": [
+          "{python}", "experiments/swamp_fluid/audit_whitewater_v6_production_surface_gate.py",
+          "{surface_reconstruction_cache}/splashsurf_manifest.json",
+          "output/swamp_fluid_preview/whitewater_v6_splashsurf_phase6_auto_domain_s120_v3_hysteretic/splashsurf_manifest.json",
+          "output/swamp_fluid_preview/splashsurf_10s_8mm/splashsurf/surface/surface_0030_clipped.obj",
+          "output/swamp_fluid_preview/whitewater_v2_source_impact_1p5s/whitewater_source/manifest.json",
+          "{stage_cache}/audit_report.json", "--source-sample", "120", "--legacy-frame", "30"
+        ],
+        "success": {
+          "kind": "verify_json", "path": "{stage_cache}/audit_report.json",
+          "product": "whitewater_v6_production_surface_gate_audit", "success_pointer": "/valid"
+        }
+      }
+    },
+    {
+      "id": "lifecycle_gate",
+      "depends_on": ["surface_gate"],
+      "inputs": [
+        "../../../output/swamp_fluid_preview/whitewater_v6_plateau_cells_phase6_hysteretic_v10_unified_active_set_solver_audit_v1/audit_report.json",
+        "../../../output/swamp_fluid_preview/whitewater_v6_lifecycle_phase6_hysteretic_v3_plateau_structural_liquid/audit_report.json"
+      ],
+      "producers": ["../audit_whitewater_v6_plateau_cells.py", "../audit_whitewater_v6_lifecycle_conservation.py"],
+      "external": true,
+      "action": {
+        "kind": "verify_json",
+        "path": "../../../output/swamp_fluid_preview/whitewater_v6_lifecycle_phase6_hysteretic_v3_plateau_structural_liquid/audit_report.json",
+        "product": "whitewater_v6_lifecycle_conservation_audit",
+        "success_pointer": "/valid"
+      }
+    },
+    {
+      "id": "render_frames",
+      "depends_on": ["surface_reconstruction", "lifecycle_gate"],
+      "inputs": [
+        "../../../output/swamp_fluid_preview/whitewater_v6_plateau_cells_phase6_hysteretic_v10_unified_active_set_solver/manifest.json",
+        "../../../output/swamp_fluid_preview/whitewater_v6_marker_trajectories_phase6_hysteretic_v7_gradient_guard_collision/manifest.json",
+        "../../../output/swamp_fluid_preview/whitewater_v6_pending_proxy_phase6_hysteretic_v1/manifest.json"
+      ],
+      "producers": ["../render_whitewater_v6_plateau_sequence.py"],
+      "external": false,
+      "action": {
+        "kind": "production_command",
+        "command": "render",
+        "success": {
+          "kind": "verify_json", "path": "{stage_cache}/render_manifest.json",
+          "product": "whitewater_v6_plateau_production_render", "success_pointer": "/complete"
+        }
+      }
+    },
+    {
+      "id": "render_gate",
+      "depends_on": ["render_frames"],
+      "inputs": ["../../../output/swamp_fluid_preview/whitewater_v6_artist_setup_swamp_v2/resolved_config.json"],
+      "producers": ["../audit_whitewater_v6_artist_render_gate.py"],
+      "external": false,
+      "action": {
+        "kind": "command",
+        "cwd": "../../..",
+        "argv": [
+          "{python}", "experiments/swamp_fluid/audit_whitewater_v6_artist_render_gate.py",
+          "output/swamp_fluid_preview/whitewater_v6_artist_setup_swamp_v2/resolved_config.json",
+          "{render_frames_cache}", "{surface_reconstruction_cache}/splashsurf_manifest.json",
+          "{stage_cache}/audit_report.json", "--source-sample", "120"
+        ],
+        "success": {
+          "kind": "verify_json", "path": "{stage_cache}/audit_report.json",
+          "product": "whitewater_v6_artist_render_gate_audit", "success_pointer": "/valid"
+        }
+      }
+    }
+  ],
+  "metadata": {
+    "status": "artist_assisted_end_to_end_still_frame_pipeline",
+    "note": "Five artist decisions are explicit. Surface reconstruction, surface audit, Plateau render and representative render audit are runner-owned command stages. Video encoding remains a separate delivery stage."
+  }
+}

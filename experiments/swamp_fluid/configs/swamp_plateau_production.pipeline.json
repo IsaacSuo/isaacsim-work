@@ -1,0 +1,74 @@
+{
+  "schema": 1,
+  "product": "whitewater_v6_pipeline",
+  "name": "swamp_plateau_production_v1",
+  "run_directory": "../../../output/swamp_fluid_preview/whitewater_v6_pipeline_swamp_plateau_v1",
+  "dependencies": [
+    {"id": "isaac_python", "kind": "executable", "path": "Y:/isaacsim/kit/python/python.exe"},
+    {"id": "blender", "kind": "executable", "path": "D:/Program Files (x86)/Blender/blender.exe"},
+    {"id": "splashsurf", "kind": "executable", "path": "Y:/tools/pysplashsurf/.venv/Scripts/pysplashsurf.exe"},
+    {"id": "ffmpeg", "kind": "executable", "path": "D:/Program Files (x86)/ffmpeg/bin/ffmpeg.exe"}
+  ],
+  "stages": [
+    {
+      "id": "scene_contract",
+      "depends_on": [],
+      "inputs": ["swamp_sphere_impact_open_terrain.scene.json"],
+      "producers": ["../whitewater/scene_contract.py"],
+      "external": true,
+      "action": {"kind": "verify_file", "path": "swamp_sphere_impact_open_terrain.scene.json", "minimum_bytes": 100}
+    },
+    {
+      "id": "flow_profile",
+      "depends_on": ["scene_contract"],
+      "inputs": ["flow_profiles/impact.json"],
+      "producers": ["../whitewater/flow_profiles.py"],
+      "external": true,
+      "action": {"kind": "verify_json", "path": "flow_profiles/impact.json", "product": "whitewater_v6_flow_profile"}
+    },
+    {
+      "id": "plateau_cache",
+      "depends_on": ["flow_profile"],
+      "inputs": ["../../../output/swamp_fluid_preview/whitewater_v6_surface_raft_phase6_hysteretic_v2_secondary_collision/manifest.json", "../../../output/swamp_fluid_preview/whitewater_v6_surface_foam_phase6_hysteretic_v2_secondary_collision/manifest.json"],
+      "producers": ["../build_whitewater_v6_plateau_cells.py", "../whitewater/plateau_cells.py"],
+      "external": true,
+      "action": {"kind": "verify_json", "path": "../../../output/swamp_fluid_preview/whitewater_v6_plateau_cells_phase6_hysteretic_v10_unified_active_set_solver/manifest.json", "product": "whitewater_v6_plateau_cells", "success_pointer": "/complete"}
+    },
+    {
+      "id": "plateau_audit",
+      "depends_on": ["plateau_cache"],
+      "inputs": ["../../../output/swamp_fluid_preview/whitewater_v6_plateau_cells_phase6_hysteretic_v10_unified_active_set_solver/manifest.json"],
+      "producers": ["../audit_whitewater_v6_plateau_cells.py"],
+      "external": true,
+      "action": {"kind": "verify_json", "path": "../../../output/swamp_fluid_preview/whitewater_v6_plateau_cells_phase6_hysteretic_v10_unified_active_set_solver_audit_v1/audit_report.json", "product": "whitewater_v6_plateau_cells_audit", "success_pointer": "/valid"}
+    },
+    {
+      "id": "lifecycle_audit",
+      "depends_on": ["plateau_audit"],
+      "inputs": ["../../../output/swamp_fluid_preview/whitewater_v6_plateau_cells_phase6_hysteretic_v10_unified_active_set_solver_audit_v1/audit_report.json"],
+      "producers": ["../audit_whitewater_v6_lifecycle_conservation.py"],
+      "external": true,
+      "action": {"kind": "verify_json", "path": "../../../output/swamp_fluid_preview/whitewater_v6_lifecycle_phase6_hysteretic_v3_plateau_structural_liquid/audit_report.json", "product": "whitewater_v6_lifecycle_conservation_audit", "success_pointer": "/valid"}
+    },
+    {
+      "id": "production_render",
+      "depends_on": ["lifecycle_audit"],
+      "inputs": ["../../../output/swamp_fluid_preview/whitewater_v6_lifecycle_phase6_hysteretic_v3_plateau_structural_liquid/audit_report.json"],
+      "producers": ["../render_whitewater_v6_plateau_sequence.py"],
+      "external": true,
+      "action": {"kind": "verify_json", "path": "../../../output/swamp_fluid_preview/whitewater_v6_plateau_short_render_v1/render_manifest.json", "product": "whitewater_v6_plateau_production_render", "success_pointer": "/complete"}
+    },
+    {
+      "id": "video_audit",
+      "depends_on": ["production_render"],
+      "inputs": ["../../../output/swamp_fluid_preview/whitewater_v6_plateau_short_render_v1/render_manifest.json", "../../../output/swamp_fluid_preview/whitewater_v6_plateau_short_render_v1/swamp_plateau_whitewater_short_v1.mp4"],
+      "producers": ["../audit_whitewater_v6_plateau_video.py"],
+      "external": true,
+      "action": {"kind": "verify_json", "path": "../../../output/swamp_fluid_preview/whitewater_v6_plateau_short_render_v1/video_audit_report.json", "product": "whitewater_v6_plateau_production_video_audit", "success_pointer": "/valid"}
+    }
+  ],
+  "metadata": {
+    "status": "production_artifact_adoption_and_reproducible_fingerprint_gate",
+    "note": "Command stages use fingerprinted stage_cache paths; this checked impact configuration adopts the already built locked artifacts without overwriting them."
+  }
+}

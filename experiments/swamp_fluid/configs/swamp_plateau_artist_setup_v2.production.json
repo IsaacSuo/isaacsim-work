@@ -1,0 +1,72 @@
+{
+  "schema": 1,
+  "product": "whitewater_v6_production_configuration",
+  "name": "swamp_plateau_artist_setup_v2",
+  "paths": {
+    "scene_contract": "swamp_sphere_impact_open_terrain.scene.json",
+    "flow_profile": "flow_profiles/impact.json",
+    "source_manifest": "../../../output/swamp_fluid_preview/whitewater_v2_source_impact_1p5s/whitewater_source/manifest.json",
+    "source_directory": "../../../output/swamp_fluid_preview/whitewater_v2_source_impact_1p5s/whitewater_source",
+    "domain_manifest": "../../../output/swamp_fluid_preview/whitewater_v6_domain_partition_phase6_s32_120_stride8_v4_hysteretic/domain_manifest.json",
+    "particle_directory": "../../../output/swamp_fluid_preview/whitewater_v2_source_impact_1p5s/whitewater_source",
+    "plateau_directory": "../../../output/swamp_fluid_preview/whitewater_v6_plateau_cells_phase6_hysteretic_v10_unified_active_set_solver",
+    "marker_directory": "../../../output/swamp_fluid_preview/whitewater_v6_marker_trajectories_phase6_hysteretic_v7_gradient_guard_collision",
+    "pending_proxy_directory": "../../../output/swamp_fluid_preview/whitewater_v6_pending_proxy_phase6_hysteretic_v1",
+    "blender_scene": "Y:/scenes/swamp.blend",
+    "hdri": "Y:/scenes/HDRI/bryanston_park_sunrise_8k.exr",
+    "output_root": "../../../output/swamp_fluid_preview/whitewater_v6_artist_setup_swamp_v2",
+    "isaac_python": "Y:/isaacsim/kit/python/python.exe",
+    "splashsurf_executable": "Y:/tools/pysplashsurf/.venv/Scripts/pysplashsurf.exe",
+    "blender_executable": "D:/Program Files (x86)/Blender/blender.exe",
+    "ffmpeg_executable": "D:/Program Files (x86)/ffmpeg/bin/ffmpeg.exe"
+  },
+  "physical": {
+    "particle_spacing_m": 0.008,
+    "water_level_m": -1.380990319252014
+  },
+  "splashsurf": {
+    "workers": 1,
+    "threads_per_worker": 16,
+    "particle_radius_m": 0.0049628039271952,
+    "smoothing_length": 1.61199195401647,
+    "cube_size": 0.604496982756176,
+    "surface_threshold": 0.6,
+    "mesh_smoothing_iterations": 10,
+    "normal_smoothing_iterations": 10,
+    "shoreline_mode": "terrain",
+    "shoreline_reference_ply": null,
+    "minimum_particle_layers": 8,
+    "shoreline_erosion_cells": 4,
+    "terrain_raster_bounds_xz": null,
+    "terrain_raster_axis_dtype": "float64"
+  },
+  "whitewater": {
+    "water_body_id": "water_body_000",
+    "source_samples": [32, 40, 48, 56, 64, 72, 80, 88, 96, 104, 112, 120],
+    "water_body_seed_xz": [-0.73, 0.78],
+    "splash_retention_radius_m": 0.4
+  },
+  "render": {
+    "camera_preset": "custom",
+    "camera_eye_xyz_m": [-0.373, -0.335, -0.207],
+    "camera_target_xyz_m": [-0.73, -1.41099, 0.78],
+    "camera_lens_mm": 55.0,
+    "camera_sensor_width_mm": 24.0,
+    "camera_clip_start_m": 0.005,
+    "impactor_collider_id": "drop_sphere",
+    "resolution": 520,
+    "samples": 24,
+    "fps": 15.0,
+    "hdri_strength": 0.95,
+    "micro_pixel_radius": 0.4,
+    "hero_pixel_radius": 1.35
+  },
+  "manual_setup": {
+    "terrain_selected": true,
+    "water_body_domain_reviewed": true,
+    "collider_roles_reviewed": true,
+    "shoreline_reviewed": true,
+    "camera_reviewed": true,
+    "notes": "Artist-reviewed swamp impact setup with explicit world-space camera pose and source-sample surface indexing."
+  }
+}

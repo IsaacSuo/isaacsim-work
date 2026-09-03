@@ -1,0 +1,65 @@
+{
+  "schema": 2,
+  "product": "physx_primary_liquid_pour_source",
+  "name": "mountain_wall_pour_preview_v2_20mm",
+  "coordinate_system": {
+    "axes": "xyz",
+    "handedness": "right",
+    "up_axis": "y",
+    "metres_per_unit": 1.0
+  },
+  "outlet": {
+    "shape": "ellipse",
+    "radii_m": [0.075, 0.135],
+    "pattern": "staggered_hex",
+    "stable_warp_fraction": 0.08
+  },
+  "flow": {
+    "rate_m3_s": 0.06,
+    "speed_m_s": 2.0733604913460515,
+    "velocity_profile": {
+      "kind": "power_law",
+      "edge_fraction": 0.94,
+      "exponent": 1.4
+    },
+    "tangent_perturbation_m_s": 0.012,
+    "seed": 20260901
+  },
+  "emission": {
+    "kind": "phased_cross_section",
+    "phase_count": 4
+  },
+  "timing": {
+    "start_seconds": 0.0,
+    "stop_seconds": 2.4
+  },
+  "motion": {
+    "kind": "keyframed_rigid",
+    "interpolation": "linear_orthonormalized",
+    "keyframes": [
+      {
+        "time_seconds": 0.0,
+        "centre": [3.25, 1.45, 1.7],
+        "normal": [0.96, -0.28, 0.0],
+        "up_hint": [0.0, 1.0, 0.0]
+      },
+      {
+        "time_seconds": 2.4,
+        "centre": [3.25, 1.45, 1.7],
+        "normal": [0.96, -0.28, 0.0],
+        "up_hint": [0.0, 1.0, 0.0]
+      }
+    ]
+  },
+  "metadata": {
+    "scene": "Y:/scenes/mountain/mountain.usdc",
+    "adapter": "artist_assisted_static_off_camera_pour",
+    "derived_from": "mountain_wall_pour_preview_v1",
+    "purpose": "20 mm production-candidate preview with discrete cross-section speed calibration.",
+    "calibration": {
+      "particle_spacing_m": 0.02,
+      "full_layer_particles": 75,
+      "required_mean_axial_speed_m_s": 2.0
+    }
+  }
+}

@@ -1,0 +1,465 @@
+"""Prepare a glass-cabinet pour or pre-filled pool impact run."""
+
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import sys
+from pathlib import Path, PureWindowsPath
+
+
+ROOT = Path(__file__).resolve().parents[2]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+SCENES_ROOT = Path(r"Y:\scenes") if os.name == "nt" else Path("/mnt/y/scenes")
+os.environ.setdefault("SCENES_ROOT", str(SCENES_ROOT))
+
+from experiments.model_material.run_experiments import (  # noqa: E402
+    SCENE_CONFIG_PATH,
+    load_scene_context,
+)
+
+
+def parse_args():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--scene", default="warehouse")
+    parser.add_argument("--frames", type=int, default=90)
+    parser.add_argument("--spacing", type=float, default=0.004)
+    parser.add_argument(
+        "--max-depenetration-velocity",
+        type=float,
+        default=1.0,
+        help=(
+            "Maximum speed added by particle penetration correction. This is "
+            "separate from the overall particle maximum speed."
+        ),
+    )
+    parser.add_argument(
+        "--continuous-inlet-probe",
+        action="store_true",
+        help=(
+            "Use one density-driven shared particle set and a true 240 Hz "
+            "continuous invisible inlet instead of the retained v18 source."
+        ),
+    )
+    parser.add_argument(
+        "--compact-impact-probe",
+        action="store_true",
+        help=(
+            "Build the compact v22 cabinet: smaller bodies and enclosure, a "
+            "lower-flow inlet, and first impact on the central deformable body. "
+            "This mode always uses the continuous shared particle set."
+        ),
+    )
+    parser.add_argument(
+        "--pool-drop-probe",
+        action="store_true",
+        help=(
+            "Fill a smaller glass cabinet with a pre-settled 4 mm pool, then "
+            "release the mixed rigid/deformable bodies into it."
+        ),
+    )
+    parser.add_argument(
+        "--output",
+        type=Path,
+        default=None,
+        help=(
+            "Output directory. By default each authored scene gets its own "
+            "<scene>_glass_cabinet_pour_v18_4mm directory."
+        ),
+    )
+    return parser.parse_args()
+
+
+def windows_path(path: Path) -> str:
+    resolved = path.resolve()
+    if os.name == "nt":
+        return str(resolved)
+    text = str(resolved)
+    if text.startswith("/mnt/") and len(text) > 6:
+        drive = text[5].upper()
+        relative = text[7:].replace("/", "\\")
+        return str(PureWindowsPath(f"{drive}:\\{relative}"))
+    raise ValueError(f"Path is not on a mounted Windows drive: {resolved}")
+
+
+def write_json(path: Path, payload: dict) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_suffix(path.suffix + ".tmp")
+    temporary.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+    temporary.replace(path)
+
+
+def main():
+    args = parse_args()
+    if args.pool_drop_probe and args.frames != 36:
+        raise ValueError(
+            "The compact pool-drop shot is validated for exactly 36 frames; "
+            "longer runs enter the current PhysX deformable-contact overflow."
+        )
+    if not args.pool_drop_probe and args.frames < 45:
+        raise ValueError("Glass-cabinet smoke runs require at least 45 frames")
+    if args.max_depenetration_velocity <= 0.0:
+        raise ValueError("--max-depenetration-velocity must be positive")
+    if args.pool_drop_probe and (
+        args.compact_impact_probe or args.continuous_inlet_probe
+    ):
+        raise ValueError("--pool-drop-probe cannot be combined with a pour probe")
+    scene_configs = json.loads(SCENE_CONFIG_PATH.read_text(encoding="utf-8"))
+    scene = load_scene_context(args.scene, scene_configs)
+    multi = json.loads(
+        (ROOT / "configs" / "multi_object_scene_experiments.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    profiles = json.loads(
+        (ROOT / "configs" / "model_material_experiments.json").read_text(
+            encoding="utf-8"
+        )
+    )["physics_profiles"]
+    experiment = next(
+        (item for item in multi["experiments"] if item["scene"] == args.scene), None
+    )
+    if experiment is None:
+        raise KeyError(f"No mixed-material baseline exists for scene {args.scene}")
+
+    use_pool_drop = bool(args.pool_drop_probe)
+    use_continuous_inlet = bool(
+        args.continuous_inlet_probe or args.compact_impact_probe
+    )
+
+    # The apparatus sits on the already validated scene-local support.  The
+    # visible glass remains 15 mm.  Its collision proxy extends outward to
+    # 200 mm while preserving the same inner contact plane.  This exceeds the
+    # maximum 133 mm displacement of one exact 60 Hz simulation call at the
+    # capped 8 m/s particle speed, without moving the rendered water boundary.
+    render_thickness = 0.015
+    collision_thickness = 0.200
+    floor_y = scene["support_y"] + render_thickness
+    centre_x = scene["spawn_x"]
+    centre_z = scene["spawn_z"]
+    if use_pool_drop:
+        # Keep the 4 mm water resolution, but frame the event as a compact
+        # tabletop-scale cabinet.  The earlier 0.74 m basin required 541k
+        # particles and exhausted the 12 GB GPU during peak fluid/deformable
+        # contact; this size retains comfortable clearance around all three
+        # bodies with roughly half as many particles.
+        body_scale = 0.30
+        inner_size = (0.62, 0.34, 0.46)
+        water_depth = 0.072
+        placements = (
+            (-0.17, water_depth + 0.10, 0.055),
+            (0.17, water_depth + 0.14, 0.055),
+            (0.00, water_depth + 0.18, -0.065),
+        )
+        body_contact_offset = 0.012
+        body_rest_offset = 0.002
+        layout = "glass_cabinet_pool_drop"
+    elif args.compact_impact_probe:
+        body_scale = 0.55
+        inner_size = (1.10, 0.62, 0.82)
+        placements = (
+            (-0.31, 0.030, 0.11),
+            (0.31, 0.035, 0.11),
+            (0.00, 0.040, -0.10),
+        )
+        body_contact_offset = 0.018
+        body_rest_offset = 0.006
+        layout = "glass_cabinet_compact_pour"
+    else:
+        body_scale = 1.0
+        inner_size = (1.80, 1.25, 1.25)
+        placements = (
+            (-0.55, 0.05, 0.18),
+            (0.55, 0.06, 0.18),
+            (0.00, 0.08, -0.30),
+        )
+        body_contact_offset = 0.030
+        body_rest_offset = 0.010
+        layout = "glass_cabinet_pour"
+    collision_policies = multi["rigid_collision_policies"]
+    bodies = []
+    for body, (offset_x, lift, offset_z) in zip(experiment["bodies"], placements):
+        profile = profiles[body["physics_profile"]]
+        physics_kind = "rigid" if profile["expected_behavior"] == "hard" else "deformable"
+        collision_policy = collision_policies[body["model"]]
+        collision_approximation = (
+            collision_policy["approximation"] if physics_kind == "rigid" else "tetrahedral"
+        )
+        bodies.append(
+            {
+                "model": windows_path(
+                    ROOT / "assets" / "simulation_ready_models" / body["model"]
+                ),
+                "model_height": body_scale * body["model_height"],
+                "model_yaw": body.get("model_yaw", 0.0),
+                "spawn_x": centre_x + offset_x,
+                "drop_height": floor_y + lift,
+                "spawn_z": centre_z + offset_z,
+                "density": profile["density"],
+                "youngs_modulus": profile["youngs_modulus"],
+                "poissons_ratio": profile["poissons_ratio"],
+                "linear_damping": profile["linear_damping"],
+                "settling_damping": profile["settling_damping"],
+                # Water contact in the compact impact probe should not inherit
+                # the dry collision bounce from the material profile.
+                "restitution": (
+                    0.0
+                    if args.compact_impact_probe or use_pool_drop
+                    else profile["restitution"]
+                ),
+                # Keep the collision shell proportional when the apparatus is
+                # compacted; otherwise it would become larger relative to the
+                # bodies even though the visible geometry got smaller.
+                "collision_contact_offset": body_contact_offset,
+                "collision_rest_offset": body_rest_offset,
+                "physics_kind": physics_kind,
+                "collision_approximation": collision_approximation,
+                "sdf_resolution": (
+                    int(collision_policy.get("sdf_resolution", 384))
+                    if collision_approximation == "sdf"
+                    else None
+                ),
+                "sdf_enable_remeshing": (
+                    bool(collision_policy.get("sdf_enable_remeshing", False))
+                    if collision_approximation == "sdf"
+                    else None
+                ),
+                "physics_profile": body["physics_profile"],
+                "material_preset": body["material_preset"],
+            }
+        )
+
+    output = (
+        args.output
+        if args.output is not None
+        else ROOT
+        / "output"
+        / "coupled_scenes"
+        / (
+            f"{args.scene}_glass_cabinet_pool_drop_v27_compact_4mm"
+            if use_pool_drop
+            else
+            f"{args.scene}_glass_cabinet_pour_v22_compact_4mm"
+            if args.compact_impact_probe
+            else f"{args.scene}_glass_cabinet_pour_v20_probe_4mm"
+            if use_continuous_inlet
+            else f"{args.scene}_glass_cabinet_pour_v18_4mm"
+        )
+    ).resolve()
+    body_config_path = output / "bodies.json"
+    event_config_path = output / "glass_cabinet_pour.json"
+    body_config = {
+        "schema": 1,
+        "product": "coupled_scene_mixed_body_configuration",
+        "scene": args.scene,
+        "source_experiment": experiment["id"],
+        "deformable_collision_policy": multi["deformable_collision_policy"],
+        "bodies": bodies,
+    }
+    source_start = 1 if use_pool_drop else max(16, int(round(0.27 * args.frames)))
+    source_stop = (
+        1 if use_pool_drop else min(args.frames - 12, source_start + 47)
+    )
+    particle_contact_offset = 0.5 * args.spacing / 0.6
+    pool_bottom_y = floor_y + particle_contact_offset + 0.001
+    pool_layer_count = max(
+        1,
+        int((water_depth - (particle_contact_offset + 0.001)) // args.spacing) + 1,
+    ) if use_pool_drop else None
+    pool_size_y = pool_layer_count * args.spacing if use_pool_drop else None
+    pool_centre_y = (
+        pool_bottom_y + 0.5 * (pool_layer_count - 1) * args.spacing
+        if use_pool_drop
+        else None
+    )
+    event_config = {
+        "schema": 1,
+        "product": "coupled_scene_pbd_pour_event",
+        "layout": layout,
+        "scene": args.scene,
+        "particle_set_strategy": (
+            "single_shared_density_set"
+            if use_continuous_inlet or use_pool_drop
+            else "per_emission_frame_sets"
+        ),
+        # Match the established swamp workflow: 1.5 seconds at 240 Hz is
+        # simulated off-camera before the bodies are released.
+        "settle_steps": 360 if use_pool_drop else 0,
+        "cabinet": {
+            # centre.y is deliberately the interior floor height.
+            "centre": [centre_x, floor_y, centre_z],
+            "inner_size": list(inner_size),
+            "wall_thickness": render_thickness,
+            "render_thickness": render_thickness,
+            "collision_thickness": collision_thickness,
+        },
+        "source": {
+            "spacing": args.spacing,
+            "centre": (
+                [centre_x, pool_centre_y, centre_z]
+                if use_pool_drop
+                else
+                [centre_x - 0.03, floor_y + 0.70, centre_z - 0.12]
+                if args.compact_impact_probe
+                else [
+                    centre_x + 0.10,
+                    floor_y + inner_size[1] + 0.24,
+                    centre_z + 0.03,
+                ]
+            ),
+            # size.y retains the legacy v18 source-band description.  The
+            # continuous inlet derives its flux from cross-section * speed and
+            # uses only the few millimetres upstream of its invisible plane.
+            "size": (
+                [inner_size[0] - 0.016, pool_size_y, inner_size[2] - 0.016]
+                if use_pool_drop
+                else
+                [0.072, 0.024, 0.052]
+                if args.compact_impact_probe
+                else [0.140, 0.024, 0.096]
+            ),
+            "velocity": (
+                [0.0, 0.0, 0.0]
+                if use_pool_drop
+                else
+                [0.0, -0.90, 0.0]
+                if args.compact_impact_probe
+                else [0.0, -1.25, 0.0]
+            ),
+            "emission_model": (
+                "static_slab"
+                if use_pool_drop
+                else "continuous_inlet"
+                if use_continuous_inlet
+                else "continuous_subframe_ballistic"
+            ),
+            "start_frame": source_start,
+            "stop_frame": source_stop,
+            "interval_frames": 1,
+            "maximum_speed": 8.0,
+            "max_depenetration_velocity": args.max_depenetration_velocity,
+            "solver_position_iterations": 16,
+            "density": 1000.0,
+            "friction": 0.05,
+            "damping": 0.01,
+            "settle_damping": 0.5 if use_pool_drop else 0.01,
+            "viscosity": 0.002,
+            "vorticity_confinement": 0.02,
+            "surface_tension": 0.0074,
+            "cohesion": 0.01,
+            "adhesion": 0.0,
+        },
+        "maximum_lateral_escape_fraction": 0.0001,
+        "gpu_collision_stack_size": 1342177280 if use_pool_drop else 536870912,
+        "gpu_max_deformable_volume_contacts": 16777216 if use_pool_drop else 4194304,
+        "gpu_max_deformable_surface_contacts": 2097152 if use_pool_drop else 1048576,
+        "gpu_resource_maximum_utilization": 0.90,
+        "maximum_below_floor_fraction": 0.0001,
+        "maximum_speed_cap_fraction": 0.005,
+        "body_contact_threshold": 0.040,
+        "body_visible_surface_threshold": max(0.012, 3.0 * args.spacing),
+        "minimum_body_contact_particles": 8,
+        "minimum_visible_surface_particles": 1,
+        "minimum_consecutive_visible_surface_frames": 2,
+        "gpu_max_particle_contacts": 4194304 if use_pool_drop else 2097152,
+    }
+    write_json(body_config_path, body_config)
+    write_json(event_config_path, event_config)
+
+    exact_collision = ROOT / "output" / "scene_collision_assets" / f"{args.scene}_exact_collision.usdc"
+    if scene["needs_exact_collision"] and not exact_collision.is_file():
+        raise FileNotFoundError(exact_collision)
+    target_y = floor_y + (
+        0.16
+        if use_pool_drop
+        else 0.28
+        if args.compact_impact_probe
+        else 0.55
+    )
+    camera_target = (
+        centre_x,
+        target_y,
+        centre_z - (0.02 if args.compact_impact_probe else 0.0),
+    )
+    if args.compact_impact_probe or use_pool_drop:
+        camera_distance_scale = 0.46 if use_pool_drop else 0.62
+        camera_eye = tuple(
+            camera_target[index]
+            + camera_distance_scale
+            * (scene["camera_eye"][index] - scene["camera_target"][index])
+            for index in range(3)
+        )
+    else:
+        camera_eye = tuple(scene["camera_eye"])
+    command = [
+        r"Y:\isaacsim\python.bat",
+        windows_path(ROOT / "soft_body_bounce_hero.py"),
+        "--frames", str(args.frames),
+        "--substeps", "4",
+        "--width", "480", "--height", "480",
+        "--renderer", "RaytracedLighting",
+        "--output", windows_path(output),
+        "--model", bodies[0]["model"],
+        "--model-height", str(bodies[0]["model_height"]),
+        "--model-scale-mode", "max_extent",
+        "--model-yaw", str(bodies[0]["model_yaw"]),
+        "--drop-height", str(bodies[0]["drop_height"]),
+        "--youngs-modulus", str(bodies[0]["youngs_modulus"]),
+        "--poissons-ratio", str(bodies[0]["poissons_ratio"]),
+        "--linear-damping", str(bodies[0]["linear_damping"]),
+        "--settling-damping", str(bodies[0]["settling_damping"]),
+        "--restitution", str(bodies[0]["restitution"]),
+        "--density", str(bodies[0]["density"]),
+        "--expected-behavior", "soft",
+        "--validation-profile", "generic",
+        "--deformable-resolution", "24",
+        "--deformable-solver-position-iterations", "24",
+        "--deformable-collision-remeshing",
+        "--deformable-remeshing-resolution", "0",
+        "--deformable-target-triangle-count", "0",
+        "--deformable-force-conforming",
+        "--environment-usd", windows_path(scene["usd"]),
+        "--environment-ground-only",
+        "--support-top-y", str(scene["support_y"]),
+        "--spawn-x", str(centre_x),
+        "--spawn-z", str(centre_z),
+        "--camera-eye", *map(str, camera_eye),
+        "--camera-target", *map(str, camera_target),
+        "--body-config", windows_path(body_config_path),
+        "--coupled-event-config", windows_path(event_config_path),
+        "--export-blender-usd", "--blender-usd-name", "mixed_bodies.usdc",
+        "--skip-preview-render",
+    ]
+    if scene["needs_exact_collision"]:
+        command.extend(["--prebuilt-collision-usd", windows_path(exact_collision)])
+    command_path = output / "run_command.json"
+    write_json(
+        command_path,
+        {
+            "schema": 1,
+            "scene": args.scene,
+            "layout": layout,
+            "frames": args.frames,
+            "command": command,
+        },
+    )
+    print(
+        json.dumps(
+            {
+                "scene": args.scene,
+                "layout": layout,
+                "output": str(output),
+                "body_config": str(body_config_path),
+                "event_config": str(event_config_path),
+                "command_file": str(command_path),
+                "source_frames": [source_start, source_stop],
+            },
+            indent=2,
+        )
+    )
+
+
+if __name__ == "__main__":
+    main()

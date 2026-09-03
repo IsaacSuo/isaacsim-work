@@ -110,6 +110,15 @@ def parse_args():
             "and restitution."
         ),
     )
+    parser.add_argument(
+        "--coupled-event-config",
+        default=None,
+        help=(
+            "Optional scene-local coupled-event JSON. The current implementation "
+            "adds an open glass cabinet and an append-only PhysX PBD pour to the "
+            "same stage as the rigid/deformable bodies."
+        ),
+    )
     parser.add_argument("--drop-height", type=float, default=3.0)
     parser.add_argument("--youngs-modulus", type=float, default=110000.0)
     parser.add_argument(
@@ -2281,7 +2290,7 @@ def build_scene():
         camera.CreateFStopAttr(0.0)
         set_look_at(camera.GetPrim(), (0.0, 0.0, 0.0), (0.0, 0.0, 1.0))
         print("[panorama] static environment mode: no PhysicsScene, deformable, or simulation")
-        return stage, [], camera
+        return stage, [], camera, None
 
     scene = UsdPhysics.Scene.Define(stage, "/World/PhysicsScene")
     scene.CreateGravityDirectionAttr().Set(Gf.Vec3f(0.0, -1.0, 0.0))
@@ -2412,6 +2421,24 @@ def build_scene():
         )
     )
 
+    coupled_event = None
+    if ARGS.coupled_event_config:
+        from coupled_scene.pbd_pour_event import PbdPourEvent
+
+        coupled_event = PbdPourEvent(
+            stage=stage,
+            physics_scene=scene,
+            configuration_path=ARGS.coupled_event_config,
+            output_directory=OUTPUT_DIR,
+            frame_count=ARGS.frames,
+            physics_substeps=ARGS.substeps,
+        )
+        print(
+            f"[coupled-event] layout={coupled_event.metadata['layout']} "
+            f"scene={coupled_event.metadata['scene']} "
+            f"max_particles={coupled_event.metadata['source']['maximum_particles']}"
+        )
+
     camera = UsdGeom.Camera.Define(stage, "/World/HeroCamera")
     camera.CreateFocalLengthAttr(ARGS.camera_focal_length)
     camera.CreateHorizontalApertureAttr(36.0)
@@ -2480,7 +2507,7 @@ def build_scene():
             8.0,
             8.0,
         )
-    return stage, bodies, camera
+    return stage, bodies, camera, coupled_event
 
 
 def main():
@@ -2501,6 +2528,7 @@ def main():
         "hdri_intensity": ARGS.hdri_intensity,
         "hdri_rotation_x_degrees": ARGS.hdri_rotation_x_degrees,
         "support_top_y": None if ARGS.environment_panorama else ARGS.support_top_y,
+        "coupled_event_config": ARGS.coupled_event_config,
     }
     simulation = None
     attached = False
@@ -2513,7 +2541,9 @@ def main():
             if ARGS.environment_panorama
             else "Building studio, closed elephant mesh, and volume deformable hierarchy",
         )
-        stage, bodies, camera = build_scene()
+        stage, bodies, camera, coupled_event = build_scene()
+        if coupled_event is not None:
+            coupled_event.prepare_preroll(bodies, simulation_app)
         visual = bodies[0]["visual"] if bodies else None
         root_prim = bodies[0]["root"] if bodies else None
         visual_vertex_count = sum(body["vertex_count"] for body in bodies)
@@ -2610,11 +2640,14 @@ def main():
         stage_id = UsdUtils.StageCache.Get().GetId(stage).ToLongInt()
         simulation.attach_stage(stage_id)
         attached = True
+        if coupled_event is not None:
+            coupled_event.run_preroll(simulation, simulation_app)
 
         simulation_points_count = None
         simulation_points_per_body = None
         tet_trajectory_states = {}
         tet_trajectory = None
+        coupled_event_report = None
         if ARGS.debug_deformable_frame is not None and not (
             1 <= ARGS.debug_deformable_frame <= ARGS.frames
         ):
@@ -2622,9 +2655,28 @@ def main():
                 "--debug-deformable-frame must be within the simulated frame range"
             )
         for frame in range(ARGS.frames):
-            simulation.simulate(1.0 / 60.0, frame / 60.0)
-            simulation.fetch_results()
-            simulation_app.update()
+            if (
+                coupled_event is not None
+                and coupled_event.manual_substep_emission
+            ):
+                substep_dt = 1.0 / (60.0 * ARGS.substeps)
+                for substep in range(ARGS.substeps):
+                    coupled_event.enable_due(frame + 1, substep, simulation_app)
+                    simulation_time = (
+                        frame * ARGS.substeps + substep
+                    ) * substep_dt
+                    simulation.simulate(substep_dt, simulation_time)
+                    simulation.fetch_results()
+                    coupled_event.sample_solver_resources(frame + 1, substep)
+                    simulation_app.update()
+            else:
+                if coupled_event is not None:
+                    coupled_event.enable_due(frame + 1, 0, simulation_app)
+                simulation.simulate(1.0 / 60.0, frame / 60.0)
+                simulation.fetch_results()
+                if coupled_event is not None:
+                    coupled_event.sample_solver_resources(frame + 1, -1)
+                simulation_app.update()
             frame_snapshots = []
             for body, snapshots_for_body in zip(bodies, body_snapshots):
                 body_snapshot = current_snapshot(
@@ -2638,6 +2690,18 @@ def main():
                         f"for body {body['index']}"
                     )
             snapshot = frame_snapshots[0]
+            if coupled_event is not None:
+                coupled_event.capture(
+                    frame + 1,
+                    [
+                        {
+                            **body_snapshot,
+                            "body_index": body["index"],
+                            "physics_kind": body["physics_kind"],
+                        }
+                        for body, body_snapshot in zip(bodies, frame_snapshots)
+                    ],
+                )
             if ARGS.audit_tet_trajectory:
                 for body in bodies:
                     if body["physics_kind"] != "deformable":
@@ -2809,6 +2873,15 @@ def main():
 
         simulation.detach_stage()
         attached = False
+
+        if coupled_event is not None:
+            coupled_event_report = coupled_event.finalize()
+            print(
+                f"[coupled-event] valid={coupled_event_report['valid']} "
+                f"frames={coupled_event_report['frames']} "
+                f"max_speed={coupled_event_report['maximum_speed_m_s']:.4f} "
+                f"lateral_escape={coupled_event_report['maximum_lateral_escape_fraction']:.6f}"
+            )
 
         blender_cache = None
         if ARGS.export_blender_usd:
@@ -3062,6 +3135,7 @@ def main():
         report.update(
             {
                 "body_count": len(bodies),
+                "coupled_event": coupled_event_report,
                 "bodies": [
                     {
                         "index": body["index"],
@@ -3226,6 +3300,10 @@ def main():
             and usd_valid
             and len(verified_pngs) == len(active_png_names)
             and video_frames_valid
+            and (
+                coupled_event_report is None
+                or bool(coupled_event_report.get("valid"))
+            )
             and (not ARGS.export_blender_usd or bool(blender_cache and blender_cache["valid"]))
         )
         if not report["valid"]:

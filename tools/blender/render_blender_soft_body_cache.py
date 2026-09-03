@@ -50,6 +50,7 @@ MATERIAL_PRESETS = (
     if len(argv) >= 21
     else ["silicone_cloudy"]
 )
+SCENE_NAME_OVERRIDE = os.environ.get("RENDER_SCENE_NAME")
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
 
@@ -261,7 +262,7 @@ def configure_scene_shadow_key(scene, scene_name):
 
 def configure_apartment_baked_shadow_overlay(scene, soft_bodies):
     """Add a linked shadow catcher without relighting the baked apartment scene."""
-    if CACHE_PATH.parent.name != "apartment" or os.environ.get("APARTMENT_SHADOW_CATCHER", "0") != "1":
+    if (SCENE_NAME_OVERRIDE or CACHE_PATH.parent.name) != "apartment" or os.environ.get("APARTMENT_SHADOW_CATCHER", "0") != "1":
         return {"applied": False}
 
     bpy.ops.mesh.primitive_plane_add(
@@ -308,7 +309,7 @@ def configure_apartment_baked_shadow_overlay(scene, soft_bodies):
 
 def configure_apartment_shadow_receiver_material():
     """Make only the baked floor physically light-reactive so it can receive shadows."""
-    if CACHE_PATH.parent.name != "apartment":
+    if (SCENE_NAME_OVERRIDE or CACHE_PATH.parent.name) != "apartment":
         return {"applied": False}
     scene = bpy.context.scene
     depsgraph = bpy.context.evaluated_depsgraph_get()
@@ -351,7 +352,7 @@ def configure_apartment_shadow_receiver_material():
 
 def configure_apartment_hdri_shadow_access(original_objects):
     """Let HDRI shadow rays pass through the baked shell while keeping it camera-visible."""
-    if CACHE_PATH.parent.name != "apartment":
+    if (SCENE_NAME_OVERRIDE or CACHE_PATH.parent.name) != "apartment":
         return {"applied": False}
     shadow_passthrough = []
     disabled_lights = []
@@ -378,7 +379,7 @@ def configure_apartment_authored_sun(scene, original_objects, soft_bodies):
     as a Blender light.  The viewport relationship line therefore records the
     intended direction: rays travel from the marker toward its parent's origin.
     """
-    if CACHE_PATH.parent.name != "apartment":
+    if (SCENE_NAME_OVERRIDE or CACHE_PATH.parent.name) != "apartment":
         return {"applied": False}
 
     disabled_lights = []
@@ -618,7 +619,7 @@ if len(MATERIAL_PRESETS) == 1:
     material_presets = MATERIAL_PRESETS * len(soft_bodies)
 else:
     material_presets = MATERIAL_PRESETS
-scene_name = CACHE_PATH.parent.name
+scene_name = SCENE_NAME_OVERRIDE or CACHE_PATH.parent.name
 
 body_materials = []
 for body_index, (soft_body, material_preset) in enumerate(zip(soft_bodies, material_presets)):
@@ -639,6 +640,15 @@ for body_index, (soft_body, material_preset) in enumerate(zip(soft_bodies, mater
     )
 
 scene = bpy.context.scene
+coupled_event_overlay = None
+if os.environ.get("COUPLED_EVENT_CONFIG"):
+    if str(PROJECT_ROOT) not in sys.path:
+        sys.path.insert(0, str(PROJECT_ROOT))
+    from experiments.coupled_scenes.blender_coupled_event_overlay import (
+        create_overlay_from_environment,
+    )
+
+    coupled_event_overlay = create_overlay_from_environment(scene)
 scene.render.engine = "CYCLES"
 shadow_receiver_material = configure_apartment_shadow_receiver_material()
 hdri_shadow_access = {"applied": False, "policy": "not_used_for_apartment"}
@@ -797,6 +807,9 @@ report = {
     "material_preset": material_presets[0] if len(material_presets) == 1 else None,
     "material_presets": material_presets,
     "body_materials": body_materials,
+    "coupled_event_overlay": (
+        coupled_event_overlay.report() if coupled_event_overlay is not None else None
+    ),
     "material_name": body_materials[0]["material"],
     "vertex_count": sum(len(soft_body.data.vertices) for soft_body in soft_bodies),
     "polygon_count": sum(len(soft_body.data.polygons) for soft_body in soft_bodies),
