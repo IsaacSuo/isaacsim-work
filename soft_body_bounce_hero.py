@@ -21,6 +21,16 @@ def parse_args():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--frames", type=int, default=150)
     parser.add_argument("--substeps", type=int, default=4)
+    parser.add_argument(
+        "--physics-max-bias-coefficient",
+        type=float,
+        default=None,
+        help=(
+            "Optional upper bound on penetration/error correction bias. This "
+            "prevents very small timesteps from making correction proportional "
+            "to an unbounded 1/dt."
+        ),
+    )
     parser.add_argument("--width", type=int, default=960)
     parser.add_argument("--height", type=int, default=960)
     parser.add_argument(
@@ -2298,6 +2308,18 @@ def build_scene():
     physx_scene = PhysxSchema.PhysxSceneAPI.Apply(scene.GetPrim())
     physx_scene.CreateEnableGPUDynamicsAttr().Set(True)
     physx_scene.CreateBroadphaseTypeAttr().Set("GPU")
+    physx_scene.CreateSolverTypeAttr().Set("TGS")
+    if ARGS.physics_max_bias_coefficient is not None:
+        if (
+            not math.isfinite(ARGS.physics_max_bias_coefficient)
+            or ARGS.physics_max_bias_coefficient <= 0.0
+        ):
+            raise ValueError(
+                "--physics-max-bias-coefficient must be finite and positive"
+            )
+        physx_scene.CreateMaxBiasCoefficientAttr().Set(
+            ARGS.physics_max_bias_coefficient
+        )
     physx_scene.CreateEnableExternalForcesEveryIterationAttr().Set(True)
     physx_scene.CreateTimeStepsPerSecondAttr().Set(60 * ARGS.substeps)
 
@@ -2519,6 +2541,8 @@ def main():
         "path_spp": ARGS.path_spp if ARGS.renderer == "PathTracing" else None,
         "physics_frames": 0 if ARGS.environment_panorama else ARGS.frames,
         "physics_substeps": 0 if ARGS.environment_panorama else ARGS.substeps,
+        "physics_solver_type": "TGS",
+        "physics_max_bias_coefficient": ARGS.physics_max_bias_coefficient,
         "render_video_frames": ARGS.render_video_frames,
         "export_blender_usd": ARGS.export_blender_usd,
         "output_directory": str(OUTPUT_DIR),
@@ -2850,8 +2874,13 @@ def main():
                         "samples": samples,
                     }
                 )
+            tet_trajectory_valid = all(
+                body["summary"]["maximum_inverted_tets"] == 0
+                for body in trajectory_bodies
+            )
             tet_trajectory = {
                 "schema_version": 1,
+                "valid": tet_trajectory_valid,
                 "physics_frame_rate_hz": 60,
                 "physics_substeps": int(ARGS.substeps),
                 "solver_position_iterations": int(
@@ -3289,6 +3318,10 @@ def main():
             "terrain_contact_motion" if ARGS.uneven_ground else "world_vertical_rebound"
         )
         report["rebound_check_satisfied"] = rebound_check_satisfied
+        tet_trajectory_valid = bool(
+            tet_trajectory is None or tet_trajectory.get("valid")
+        )
+        report["tet_trajectory_valid"] = tet_trajectory_valid
         report["valid"] = bool(
             all_finite
             and keyframes["contact_detected"]
@@ -3300,6 +3333,7 @@ def main():
             and usd_valid
             and len(verified_pngs) == len(active_png_names)
             and video_frames_valid
+            and tet_trajectory_valid
             and (
                 coupled_event_report is None
                 or bool(coupled_event_report.get("valid"))
@@ -3314,6 +3348,7 @@ def main():
                 f"deformation_ok={deformation_check_satisfied} "
                 f"penetration_ok={no_obvious_penetration} "
                 f"all_bodies_penetration_ok={all_bodies_penetration_valid} "
+                f"tet_trajectory_ok={tet_trajectory_valid} "
                 f"interbody_contacts={detected_interbody_contacts} "
                 f"interbody_required={interbody_contact_required}"
             )

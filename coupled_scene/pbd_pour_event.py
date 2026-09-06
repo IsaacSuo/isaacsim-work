@@ -555,7 +555,10 @@ class PbdPourEvent:
                     (int(birth_substep), positions, velocities)
                 )
             slice_count = layer_count
-        elif emission_model == "continuous_subframe_ballistic":
+        elif emission_model in {
+            "continuous_subframe_ballistic",
+            "preauthored_frame_inlet",
+        }:
             slice_count = max(1, int(np.floor(source["size"][1] / spacing)))
             frame_duration = 1.0 / 60.0
             output_ages = (
@@ -563,9 +566,9 @@ class PbdPourEvent:
                 / slice_count
                 * frame_duration
             )
-            # These particles all enter the stage at the start of the video
-            # frame.  Back-time their initial state so a full native 60 Hz
-            # call lands each layer at the same frame-boundary state as a
+            # These particles all enter the stage at the start of the output
+            # frame. Back-time their initial state so the native physics
+            # substeps land each layer at the same frame-boundary state as a
             # genuinely continuous emitter would have at output_ages.
             initial_ages = output_ages - frame_duration
             gravity_direction_value = physics_scene.GetGravityDirectionAttr().Get()
@@ -632,6 +635,7 @@ class PbdPourEvent:
         self.manual_substep_emission = emission_model in {
             "substep_batches",
             "continuous_inlet",
+            "preauthored_frame_inlet",
         }
         next_id = 0
         birth_frames = list(
@@ -674,7 +678,10 @@ class PbdPourEvent:
                 "particle_set_strategy", "single_shared_append_only_set"
             )
         )
-        if particle_set_strategy == "per_emission_frame_sets":
+        if particle_set_strategy in {
+            "per_emission_frame_sets",
+            "preauthored_frame_sets",
+        }:
             for batch_index, record in enumerate(self.batch_records):
                 particle_path = Sdf.Path(
                     f"/World/CoupledEvent/EmitterBatch_{batch_index:04d}"
@@ -688,7 +695,14 @@ class PbdPourEvent:
                     self_collision=True,
                     fluid=True,
                     particle_group=0,
-                    particle_mass=source["density"] * spacing**3,
+                    # PhysicsMassAPI.mass is the mass of the complete particle
+                    # set. PhysX divides it by the number of particles, so a
+                    # pre-authored batch must carry its full water mass here.
+                    particle_mass=(
+                        len(record["positions"])
+                        * source["density"]
+                        * spacing**3
+                    ),
                     density=source["density"],
                 )
                 particle_prim.CreateAttribute(
@@ -834,7 +848,8 @@ class PbdPourEvent:
                 "batch_count": int(len(self.batch_records)),
                 "particle_set_count": (
                     len(self.batch_records)
-                    if particle_set_strategy == "per_emission_frame_sets"
+                    if particle_set_strategy
+                    in {"per_emission_frame_sets", "preauthored_frame_sets"}
                     else 1
                 ),
                 "particle_set_strategy": particle_set_strategy,
@@ -995,7 +1010,10 @@ class PbdPourEvent:
             == due
         ):
             record = self.batch_records[self.enabled_batches]
-            if self.particle_set_strategy == "per_emission_frame_sets":
+            if self.particle_set_strategy in {
+                "per_emission_frame_sets",
+                "preauthored_frame_sets",
+            }:
                 record["enabled"].Set(True)
                 self.active_instancers.append(record["instancer"])
             else:
@@ -1065,7 +1083,10 @@ class PbdPourEvent:
                 np.empty((0, 3), dtype=np.float32),
                 np.empty((0,), dtype=np.int64),
             )
-        if self.particle_set_strategy == "per_emission_frame_sets":
+        if self.particle_set_strategy in {
+            "per_emission_frame_sets",
+            "preauthored_frame_sets",
+        }:
             positions = np.ascontiguousarray(
                 np.concatenate(
                     [

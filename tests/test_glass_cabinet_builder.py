@@ -18,13 +18,17 @@ class GlassCabinetBuilderTests(unittest.TestCase):
         self.assertEqual(result["source_stop_frame"], 420)
         self.assertEqual(result["total_frames"], 510)
         self.assertAlmostEqual(result["target_water_volume_liters"], 89.45454545)
-        self.assertEqual(result["nozzle_columns"], [42, 30])
-        self.assertEqual(result["nozzle_size_m"], [0.168, 0.120])
+        self.assertEqual(result["nozzle_columns"], [41, 29])
+        self.assertEqual(result["nozzle_size_m"], [0.164, 0.116])
+        self.assertAlmostEqual(result["inlet_speed_m_s"], 0.96)
+        self.assertAlmostEqual(
+            result["inlet_speed_m_s"] / (60.0 * 0.004), 4.0
+        )
         self.assertGreaterEqual(
             result["projected_water_depth_m"], result["target_water_depth_m"]
         )
-        self.assertAlmostEqual(result["projected_water_volume_liters"], 90.72)
-        self.assertEqual(result["projected_particle_count"], 1_417_500)
+        self.assertAlmostEqual(result["projected_water_volume_liters"], 91.3152)
+        self.assertEqual(result["projected_particle_count"], 1_426_800)
 
     def test_deep_pour_rejects_non_positive_inputs(self):
         for spacing in (0.0, -0.004):

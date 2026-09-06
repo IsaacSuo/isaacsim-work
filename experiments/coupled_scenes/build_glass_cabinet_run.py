@@ -24,6 +24,12 @@ from experiments.model_material.run_experiments import (  # noqa: E402
 
 PHYSICS_FRAMES_PER_SECOND = 60
 DEEP_POUR_NOZZLE_ASPECT_RATIO = 72.0 / 52.0
+DEEP_POUR_PHYSICS_SUBSTEPS = 12
+DEEP_POUR_PARTICLE_ITERATIONS = 64
+DEEP_POUR_DEFORMABLE_ITERATIONS = 32
+DEEP_POUR_COLLISION_TRIANGLE_COUNT = 20_000
+DEEP_POUR_MAXIMUM_SPEED = 4.2
+DEEP_POUR_MAX_BIAS_COEFFICIENT = 240.0
 
 
 def deep_pour_spec(
@@ -34,7 +40,7 @@ def deep_pour_spec(
     prewarm_seconds: float = 2.0,
     inlet_seconds: float = 5.0,
     post_inlet_seconds: float = 1.5,
-    inlet_speed: float = 0.90,
+    inlet_speed: float = 0.96,
 ) -> dict:
     """Return the discrete server-scale inlet and timing for a deep pour.
 
@@ -152,7 +158,7 @@ def parse_args():
         help=(
             "Build the original-scale, 4 mm, 3 cm target-depth production pour "
             "for a high-memory server. The preset includes two seconds of dry "
-            "body prewarm, five seconds of inlet flow, balanced 32/32 solvers, "
+            "body prewarm, five seconds of inlet flow, 64/32 solvers, "
             "finite particle/deformable depenetration speeds, and enlarged GPU "
             "contact buffers. It overrides --frames and "
             "--max-depenetration-velocity."
@@ -165,6 +171,16 @@ def parse_args():
             "With --server-deep-pour, retain only the deformable body. This "
             "matches the locally validated fluid-softbody isolation run; omit "
             "it for the full rigid/deformable production scene."
+        ),
+    )
+    parser.add_argument(
+        "--deep-pour-contact-probe",
+        action="store_true",
+        help=(
+            "With --server-deep-pour, emit only one production-width inlet "
+            "frame onto the deformable body while retaining the production "
+            "4.2 m/s safety ceiling. This short run validates contact before "
+            "launching the full cache."
         ),
     )
     parser.add_argument(
@@ -215,6 +231,8 @@ def main():
         raise ValueError(
             "--deep-pour-deformable-only requires --server-deep-pour"
         )
+    if args.deep_pour_contact_probe and not args.server_deep_pour:
+        raise ValueError("--deep-pour-contact-probe requires --server-deep-pour")
     if args.server_deep_pour and not math.isclose(
         args.spacing, 0.004, rel_tol=0.0, abs_tol=1.0e-12
     ):
@@ -301,7 +319,11 @@ def main():
         body_rest_offset = None
         layout = "glass_cabinet_compact_pour"
         deep_spec = deep_pour_spec(inner_size, args.spacing)
-        args.frames = int(deep_spec["total_frames"])
+        args.frames = (
+            int(deep_spec["source_start_frame"]) + 29
+            if args.deep_pour_contact_probe
+            else int(deep_spec["total_frames"])
+        )
     elif args.compact_impact_probe:
         body_scale = 0.55
         inner_size = (1.10, 0.62, 0.82)
@@ -384,7 +406,7 @@ def main():
                 "material_preset": body["material_preset"],
             }
         )
-    if args.deep_pour_deformable_only:
+    if args.deep_pour_deformable_only or args.deep_pour_contact_probe:
         bodies = [body for body in bodies if body["physics_kind"] == "deformable"]
         if len(bodies) != 1:
             raise RuntimeError(
@@ -399,7 +421,9 @@ def main():
         / "coupled_scenes"
         / (
             f"{args.scene}_glass_cabinet_deep_pour_server_3cm_4mm"
-            if args.server_deep_pour
+            if args.server_deep_pour and not args.deep_pour_contact_probe
+            else f"{args.scene}_glass_cabinet_deep_pour_contact_probe_4mm"
+            if args.deep_pour_contact_probe
             else (
                 f"{args.scene}_glass_cabinet_pool_drop_v27_compact_4mm"
                 if use_pool_drop
@@ -427,7 +451,11 @@ def main():
     }
     if deep_spec is not None:
         source_start = int(deep_spec["source_start_frame"])
-        source_stop = int(deep_spec["source_stop_frame"])
+        source_stop = (
+            source_start
+            if args.deep_pour_contact_probe
+            else int(deep_spec["source_stop_frame"])
+        )
     elif use_pool_drop:
         source_start = source_stop = 1
     else:
@@ -451,7 +479,9 @@ def main():
         "layout": layout,
         "scene": args.scene,
         "particle_set_strategy": (
-            "single_shared_density_set"
+            "preauthored_frame_sets"
+            if args.server_deep_pour
+            else "single_shared_density_set"
             if use_continuous_inlet or use_pool_drop
             else "per_emission_frame_sets"
         ),
@@ -499,7 +529,7 @@ def main():
                 else (
                     [
                         deep_spec["nozzle_size_m"][0],
-                        0.024,
+                        deep_spec["inlet_speed_m_s"] / PHYSICS_FRAMES_PER_SECOND,
                         deep_spec["nozzle_size_m"][1],
                     ]
                     if deep_spec is not None
@@ -526,6 +556,8 @@ def main():
             "emission_model": (
                 "static_slab"
                 if use_pool_drop
+                else "preauthored_frame_inlet"
+                if args.server_deep_pour
                 else "continuous_inlet"
                 if use_continuous_inlet
                 else "continuous_subframe_ballistic"
@@ -533,11 +565,15 @@ def main():
             "start_frame": source_start,
             "stop_frame": source_stop,
             "interval_frames": 1,
-            "maximum_speed": 8.0,
+            "maximum_speed": (
+                DEEP_POUR_MAXIMUM_SPEED if args.server_deep_pour else 8.0
+            ),
             "max_depenetration_velocity": (
                 0.25 if args.server_deep_pour else args.max_depenetration_velocity
             ),
-            "solver_position_iterations": 32 if args.server_deep_pour else 16,
+            "solver_position_iterations": (
+                DEEP_POUR_PARTICLE_ITERATIONS if args.server_deep_pour else 16
+            ),
             "density": 1000.0,
             "friction": 0.05,
             "damping": 0.01,
@@ -550,6 +586,9 @@ def main():
         },
         "maximum_lateral_escape_fraction": 0.0001,
         "gpu_collision_stack_size": (
+            1073741824
+            if args.deep_pour_contact_probe
+            else
             2147483648
             if args.server_deep_pour
             else 1342177280
@@ -557,11 +596,17 @@ def main():
             else 536870912
         ),
         "gpu_max_deformable_volume_contacts": (
+            8388608
+            if args.deep_pour_contact_probe
+            else
             16777216
             if args.server_deep_pour or use_pool_drop
             else 4194304
         ),
         "gpu_max_deformable_surface_contacts": (
+            2097152
+            if args.deep_pour_contact_probe
+            else
             4194304
             if args.server_deep_pour
             else 2097152
@@ -578,6 +623,9 @@ def main():
         "minimum_consecutive_visible_surface_frames": 2,
         "required_body_kinds": sorted({body["physics_kind"] for body in bodies}),
         "gpu_max_particle_contacts": (
+            2097152
+            if args.deep_pour_contact_probe
+            else
             8388608
             if args.server_deep_pour
             else 4194304
@@ -617,7 +665,8 @@ def main():
         r"Y:\isaacsim\python.bat",
         windows_path(ROOT / "soft_body_bounce_hero.py"),
         "--frames", str(args.frames),
-        "--substeps", "4",
+        "--substeps",
+        str(DEEP_POUR_PHYSICS_SUBSTEPS if args.server_deep_pour else 4),
         "--width", "480", "--height", "480",
         "--renderer", "RaytracedLighting",
         "--output", windows_path(output),
@@ -636,10 +685,13 @@ def main():
         "--validation-profile", "generic",
         "--deformable-resolution", "24",
         "--deformable-solver-position-iterations",
-        "32" if args.server_deep_pour else "24",
+        str(DEEP_POUR_DEFORMABLE_ITERATIONS) if args.server_deep_pour else "24",
         "--deformable-collision-remeshing",
         "--deformable-remeshing-resolution", "0",
-        "--deformable-target-triangle-count", "0",
+        "--deformable-target-triangle-count",
+        str(DEEP_POUR_COLLISION_TRIANGLE_COUNT)
+        if args.server_deep_pour
+        else "0",
         "--deformable-force-conforming",
         "--environment-usd", windows_path(scene["usd"]),
         "--environment-ground-only",
@@ -653,6 +705,13 @@ def main():
         "--export-blender-usd", "--blender-usd-name", "mixed_bodies.usdc",
         "--skip-preview-render",
     ]
+    if args.server_deep_pour:
+        command.extend(
+            [
+                "--physics-max-bias-coefficient",
+                str(DEEP_POUR_MAX_BIAS_COEFFICIENT),
+            ]
+        )
     if args.server_deep_pour:
         command.extend(
             [
@@ -672,10 +731,15 @@ def main():
             "layout": layout,
             "frames": args.frames,
             "production_target": deep_spec,
+            "contact_stability_probe": bool(args.deep_pour_contact_probe),
             "suggested_capture": (
                 {
                     "physics_frame_start": deep_spec["visible_start_frame"],
-                    "physics_frame_stop": deep_spec["visible_stop_frame"],
+                    "physics_frame_stop": (
+                        args.frames
+                        if args.deep_pour_contact_probe
+                        else deep_spec["visible_stop_frame"]
+                    ),
                     "physics_frame_stride_for_30fps": 2,
                 }
                 if deep_spec is not None
