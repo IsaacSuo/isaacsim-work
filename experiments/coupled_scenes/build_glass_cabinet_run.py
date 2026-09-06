@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import os
 import sys
 from pathlib import Path, PureWindowsPath
@@ -19,6 +20,91 @@ from experiments.model_material.run_experiments import (  # noqa: E402
     SCENE_CONFIG_PATH,
     load_scene_context,
 )
+
+
+PHYSICS_FRAMES_PER_SECOND = 60
+DEEP_POUR_NOZZLE_ASPECT_RATIO = 72.0 / 52.0
+
+
+def deep_pour_spec(
+    inner_size,
+    spacing: float,
+    *,
+    target_water_depth: float = 0.030,
+    prewarm_seconds: float = 2.0,
+    inlet_seconds: float = 5.0,
+    post_inlet_seconds: float = 1.5,
+    inlet_speed: float = 0.90,
+) -> dict:
+    """Return the discrete server-scale inlet and timing for a deep pour.
+
+    The requested water depth is converted to volume using the cabinet floor
+    area.  Nozzle dimensions are then snapped up to complete particle lattice
+    columns, so the generated volume cannot silently fall below the requested
+    depth because ``_axis_samples`` truncates partial columns.
+    """
+    inner_x, _inner_y, inner_z = (float(value) for value in inner_size)
+    spacing = float(spacing)
+    values = {
+        "cabinet inner x": inner_x,
+        "cabinet inner z": inner_z,
+        "spacing": spacing,
+        "target water depth": float(target_water_depth),
+        "prewarm seconds": float(prewarm_seconds),
+        "inlet seconds": float(inlet_seconds),
+        "post-inlet seconds": float(post_inlet_seconds),
+        "inlet speed": float(inlet_speed),
+    }
+    if any(not math.isfinite(value) or value <= 0.0 for value in values.values()):
+        raise ValueError(f"Deep-pour dimensions and timing must be positive: {values}")
+
+    prewarm_frames = int(round(prewarm_seconds * PHYSICS_FRAMES_PER_SECOND))
+    inlet_frames = int(round(inlet_seconds * PHYSICS_FRAMES_PER_SECOND))
+    post_inlet_frames = int(
+        round(post_inlet_seconds * PHYSICS_FRAMES_PER_SECOND)
+    )
+    if min(prewarm_frames, inlet_frames, post_inlet_frames) < 1:
+        raise ValueError("Deep-pour timing must allocate at least one frame per phase")
+
+    target_volume = inner_x * inner_z * target_water_depth
+    lattice_column_area = spacing**2
+    inlet_distance = inlet_speed * inlet_frames / PHYSICS_FRAMES_PER_SECOND
+    minimum_columns = int(
+        math.ceil(target_volume / (lattice_column_area * inlet_distance))
+    )
+    nozzle_columns_x = int(
+        math.ceil(math.sqrt(minimum_columns * DEEP_POUR_NOZZLE_ASPECT_RATIO))
+    )
+    nozzle_columns_z = int(math.ceil(minimum_columns / nozzle_columns_x))
+    nozzle_size_x = nozzle_columns_x * spacing
+    nozzle_size_z = nozzle_columns_z * spacing
+    effective_area = nozzle_columns_x * nozzle_columns_z * lattice_column_area
+    projected_volume = effective_area * inlet_distance
+    projected_depth = projected_volume / (inner_x * inner_z)
+    projected_particles = int(round(projected_volume / spacing**3))
+    source_start = prewarm_frames + 1
+    source_stop = prewarm_frames + inlet_frames
+    total_frames = source_stop + post_inlet_frames
+    return {
+        "prewarm_frames": prewarm_frames,
+        "inlet_frames": inlet_frames,
+        "post_inlet_frames": post_inlet_frames,
+        "source_start_frame": source_start,
+        "source_stop_frame": source_stop,
+        "total_frames": total_frames,
+        "visible_start_frame": prewarm_frames,
+        "visible_stop_frame": total_frames,
+        "target_water_depth_m": target_water_depth,
+        "target_water_volume_m3": target_volume,
+        "target_water_volume_liters": 1000.0 * target_volume,
+        "nozzle_columns": [nozzle_columns_x, nozzle_columns_z],
+        "nozzle_size_m": [nozzle_size_x, nozzle_size_z],
+        "projected_water_depth_m": projected_depth,
+        "projected_water_volume_m3": projected_volume,
+        "projected_water_volume_liters": 1000.0 * projected_volume,
+        "projected_particle_count": projected_particles,
+        "inlet_speed_m_s": inlet_speed,
+    }
 
 
 def parse_args():
@@ -61,6 +147,27 @@ def parse_args():
         ),
     )
     parser.add_argument(
+        "--server-deep-pour",
+        action="store_true",
+        help=(
+            "Build the original-scale, 4 mm, 3 cm target-depth production pour "
+            "for a high-memory server. The preset includes two seconds of dry "
+            "body prewarm, five seconds of inlet flow, balanced 32/32 solvers, "
+            "finite particle/deformable depenetration speeds, and enlarged GPU "
+            "contact buffers. It overrides --frames and "
+            "--max-depenetration-velocity."
+        ),
+    )
+    parser.add_argument(
+        "--deep-pour-deformable-only",
+        action="store_true",
+        help=(
+            "With --server-deep-pour, retain only the deformable body. This "
+            "matches the locally validated fluid-softbody isolation run; omit "
+            "it for the full rigid/deformable production scene."
+        ),
+    )
+    parser.add_argument(
         "--output",
         type=Path,
         default=None,
@@ -93,12 +200,31 @@ def write_json(path: Path, payload: dict) -> None:
 
 def main():
     args = parse_args()
+    exclusive_modes = (
+        args.pool_drop_probe,
+        args.compact_impact_probe,
+        args.continuous_inlet_probe,
+        args.server_deep_pour,
+    )
+    if sum(bool(value) for value in exclusive_modes) > 1:
+        raise ValueError(
+            "Choose only one of --pool-drop-probe, --compact-impact-probe, "
+            "--continuous-inlet-probe, and --server-deep-pour"
+        )
+    if args.deep_pour_deformable_only and not args.server_deep_pour:
+        raise ValueError(
+            "--deep-pour-deformable-only requires --server-deep-pour"
+        )
+    if args.server_deep_pour and not math.isclose(
+        args.spacing, 0.004, rel_tol=0.0, abs_tol=1.0e-12
+    ):
+        raise ValueError("--server-deep-pour is calibrated for --spacing 0.004")
     if args.pool_drop_probe and args.frames != 36:
         raise ValueError(
             "The compact pool-drop shot is validated for exactly 36 frames; "
             "longer runs enter the current PhysX deformable-contact overflow."
         )
-    if not args.pool_drop_probe and args.frames < 45:
+    if not args.pool_drop_probe and not args.server_deep_pour and args.frames < 45:
         raise ValueError("Glass-cabinet smoke runs require at least 45 frames")
     if args.max_depenetration_velocity <= 0.0:
         raise ValueError("--max-depenetration-velocity must be positive")
@@ -126,7 +252,9 @@ def main():
 
     use_pool_drop = bool(args.pool_drop_probe)
     use_continuous_inlet = bool(
-        args.continuous_inlet_probe or args.compact_impact_probe
+        args.continuous_inlet_probe
+        or args.compact_impact_probe
+        or args.server_deep_pour
     )
 
     # The apparatus sits on the already validated scene-local support.  The
@@ -139,6 +267,7 @@ def main():
     floor_y = scene["support_y"] + render_thickness
     centre_x = scene["spawn_x"]
     centre_z = scene["spawn_z"]
+    deep_spec = None
     if use_pool_drop:
         # Keep the 4 mm water resolution, but frame the event as a compact
         # tabletop-scale cabinet.  The earlier 0.74 m basin required 541k
@@ -156,6 +285,23 @@ def main():
         body_contact_offset = 0.012
         body_rest_offset = 0.002
         layout = "glass_cabinet_pool_drop"
+    elif args.server_deep_pour:
+        # This is the original object/cabinet scale used by the v45-v59
+        # coupling investigation.  Keep the smaller deformable contact shell
+        # instead of the legacy 30/10 mm shell, which was too large for 4 mm
+        # fluid particles.
+        body_scale = 1.0
+        inner_size = (2.0, 1.1272727272727272, 1.4909090909090907)
+        placements = (
+            (-0.5636363636363636, 0.05454545454545454, 0.20),
+            (0.5636363636363636, 0.06363636363636363, 0.20),
+            (0.0, 0.07272727272727272, -0.18181818181818182),
+        )
+        body_contact_offset = None
+        body_rest_offset = None
+        layout = "glass_cabinet_compact_pour"
+        deep_spec = deep_pour_spec(inner_size, args.spacing)
+        args.frames = int(deep_spec["total_frames"])
     elif args.compact_impact_probe:
         body_scale = 0.55
         inner_size = (1.10, 0.62, 0.82)
@@ -187,6 +333,12 @@ def main():
         collision_approximation = (
             collision_policy["approximation"] if physics_kind == "rigid" else "tetrahedral"
         )
+        if args.server_deep_pour:
+            collision_contact_offset = 0.006 if physics_kind == "deformable" else 0.018
+            collision_rest_offset = 0.0 if physics_kind == "deformable" else 0.006
+        else:
+            collision_contact_offset = body_contact_offset
+            collision_rest_offset = body_rest_offset
         bodies.append(
             {
                 "model": windows_path(
@@ -206,14 +358,16 @@ def main():
                 # the dry collision bounce from the material profile.
                 "restitution": (
                     0.0
-                    if args.compact_impact_probe or use_pool_drop
+                    if args.compact_impact_probe
+                    or use_pool_drop
+                    or args.server_deep_pour
                     else profile["restitution"]
                 ),
                 # Keep the collision shell proportional when the apparatus is
                 # compacted; otherwise it would become larger relative to the
                 # bodies even though the visible geometry got smaller.
-                "collision_contact_offset": body_contact_offset,
-                "collision_rest_offset": body_rest_offset,
+                "collision_contact_offset": collision_contact_offset,
+                "collision_rest_offset": collision_rest_offset,
                 "physics_kind": physics_kind,
                 "collision_approximation": collision_approximation,
                 "sdf_resolution": (
@@ -230,6 +384,12 @@ def main():
                 "material_preset": body["material_preset"],
             }
         )
+    if args.deep_pour_deformable_only:
+        bodies = [body for body in bodies if body["physics_kind"] == "deformable"]
+        if len(bodies) != 1:
+            raise RuntimeError(
+                "The deep-pour isolation preset expected exactly one deformable body"
+            )
 
     output = (
         args.output
@@ -238,14 +398,21 @@ def main():
         / "output"
         / "coupled_scenes"
         / (
-            f"{args.scene}_glass_cabinet_pool_drop_v27_compact_4mm"
-            if use_pool_drop
-            else
-            f"{args.scene}_glass_cabinet_pour_v22_compact_4mm"
-            if args.compact_impact_probe
-            else f"{args.scene}_glass_cabinet_pour_v20_probe_4mm"
-            if use_continuous_inlet
-            else f"{args.scene}_glass_cabinet_pour_v18_4mm"
+            f"{args.scene}_glass_cabinet_deep_pour_server_3cm_4mm"
+            if args.server_deep_pour
+            else (
+                f"{args.scene}_glass_cabinet_pool_drop_v27_compact_4mm"
+                if use_pool_drop
+                else (
+                    f"{args.scene}_glass_cabinet_pour_v22_compact_4mm"
+                    if args.compact_impact_probe
+                    else (
+                        f"{args.scene}_glass_cabinet_pour_v20_probe_4mm"
+                        if use_continuous_inlet
+                        else f"{args.scene}_glass_cabinet_pour_v18_4mm"
+                    )
+                )
+            )
         )
     ).resolve()
     body_config_path = output / "bodies.json"
@@ -258,10 +425,14 @@ def main():
         "deformable_collision_policy": multi["deformable_collision_policy"],
         "bodies": bodies,
     }
-    source_start = 1 if use_pool_drop else max(16, int(round(0.27 * args.frames)))
-    source_stop = (
-        1 if use_pool_drop else min(args.frames - 12, source_start + 47)
-    )
+    if deep_spec is not None:
+        source_start = int(deep_spec["source_start_frame"])
+        source_stop = int(deep_spec["source_stop_frame"])
+    elif use_pool_drop:
+        source_start = source_stop = 1
+    else:
+        source_start = max(16, int(round(0.27 * args.frames)))
+        source_stop = min(args.frames - 12, source_start + 47)
     particle_contact_offset = 0.5 * args.spacing / 0.6
     pool_bottom_y = floor_y + particle_contact_offset + 0.001
     pool_layer_count = max(
@@ -284,6 +455,7 @@ def main():
             if use_continuous_inlet or use_pool_drop
             else "per_emission_frame_sets"
         ),
+        "production_target": deep_spec,
         # Match the established swamp workflow: 1.5 seconds at 240 Hz is
         # simulated off-camera before the bodies are released.
         "settle_steps": 360 if use_pool_drop else 0,
@@ -300,14 +472,23 @@ def main():
             "centre": (
                 [centre_x, pool_centre_y, centre_z]
                 if use_pool_drop
-                else
-                [centre_x - 0.03, floor_y + 0.70, centre_z - 0.12]
-                if args.compact_impact_probe
-                else [
-                    centre_x + 0.10,
-                    floor_y + inner_size[1] + 0.24,
-                    centre_z + 0.03,
-                ]
+                else (
+                    [
+                        centre_x - 0.03,
+                        floor_y + 0.625,
+                        centre_z - 0.2018181818181818,
+                    ]
+                    if args.server_deep_pour
+                    else (
+                        [centre_x - 0.03, floor_y + 0.70, centre_z - 0.12]
+                        if args.compact_impact_probe
+                        else [
+                            centre_x + 0.10,
+                            floor_y + inner_size[1] + 0.24,
+                            centre_z + 0.03,
+                        ]
+                    )
+                )
             ),
             # size.y retains the legacy v18 source-band description.  The
             # continuous inlet derives its flux from cross-section * speed and
@@ -315,18 +496,32 @@ def main():
             "size": (
                 [inner_size[0] - 0.016, pool_size_y, inner_size[2] - 0.016]
                 if use_pool_drop
-                else
-                [0.072, 0.024, 0.052]
-                if args.compact_impact_probe
-                else [0.140, 0.024, 0.096]
+                else (
+                    [
+                        deep_spec["nozzle_size_m"][0],
+                        0.024,
+                        deep_spec["nozzle_size_m"][1],
+                    ]
+                    if deep_spec is not None
+                    else (
+                        [0.072, 0.024, 0.052]
+                        if args.compact_impact_probe
+                        else [0.140, 0.024, 0.096]
+                    )
+                )
             ),
             "velocity": (
                 [0.0, 0.0, 0.0]
                 if use_pool_drop
-                else
-                [0.0, -0.90, 0.0]
-                if args.compact_impact_probe
-                else [0.0, -1.25, 0.0]
+                else (
+                    [0.0, -deep_spec["inlet_speed_m_s"], 0.0]
+                    if deep_spec is not None
+                    else (
+                        [0.0, -0.90, 0.0]
+                        if args.compact_impact_probe
+                        else [0.0, -1.25, 0.0]
+                    )
+                )
             ),
             "emission_model": (
                 "static_slab"
@@ -339,8 +534,10 @@ def main():
             "stop_frame": source_stop,
             "interval_frames": 1,
             "maximum_speed": 8.0,
-            "max_depenetration_velocity": args.max_depenetration_velocity,
-            "solver_position_iterations": 16,
+            "max_depenetration_velocity": (
+                0.25 if args.server_deep_pour else args.max_depenetration_velocity
+            ),
+            "solver_position_iterations": 32 if args.server_deep_pour else 16,
             "density": 1000.0,
             "friction": 0.05,
             "damping": 0.01,
@@ -352,9 +549,25 @@ def main():
             "adhesion": 0.0,
         },
         "maximum_lateral_escape_fraction": 0.0001,
-        "gpu_collision_stack_size": 1342177280 if use_pool_drop else 536870912,
-        "gpu_max_deformable_volume_contacts": 16777216 if use_pool_drop else 4194304,
-        "gpu_max_deformable_surface_contacts": 2097152 if use_pool_drop else 1048576,
+        "gpu_collision_stack_size": (
+            2147483648
+            if args.server_deep_pour
+            else 1342177280
+            if use_pool_drop
+            else 536870912
+        ),
+        "gpu_max_deformable_volume_contacts": (
+            16777216
+            if args.server_deep_pour or use_pool_drop
+            else 4194304
+        ),
+        "gpu_max_deformable_surface_contacts": (
+            4194304
+            if args.server_deep_pour
+            else 2097152
+            if use_pool_drop
+            else 1048576
+        ),
         "gpu_resource_maximum_utilization": 0.90,
         "maximum_below_floor_fraction": 0.0001,
         "maximum_speed_cap_fraction": 0.005,
@@ -363,7 +576,14 @@ def main():
         "minimum_body_contact_particles": 8,
         "minimum_visible_surface_particles": 1,
         "minimum_consecutive_visible_surface_frames": 2,
-        "gpu_max_particle_contacts": 4194304 if use_pool_drop else 2097152,
+        "required_body_kinds": sorted({body["physics_kind"] for body in bodies}),
+        "gpu_max_particle_contacts": (
+            8388608
+            if args.server_deep_pour
+            else 4194304
+            if use_pool_drop
+            else 2097152
+        ),
     }
     write_json(body_config_path, body_config)
     write_json(event_config_path, event_config)
@@ -415,7 +635,8 @@ def main():
         "--expected-behavior", "soft",
         "--validation-profile", "generic",
         "--deformable-resolution", "24",
-        "--deformable-solver-position-iterations", "24",
+        "--deformable-solver-position-iterations",
+        "32" if args.server_deep_pour else "24",
         "--deformable-collision-remeshing",
         "--deformable-remeshing-resolution", "0",
         "--deformable-target-triangle-count", "0",
@@ -432,6 +653,14 @@ def main():
         "--export-blender-usd", "--blender-usd-name", "mixed_bodies.usdc",
         "--skip-preview-render",
     ]
+    if args.server_deep_pour:
+        command.extend(
+            [
+                "--deformable-max-depenetration-velocity",
+                "0.25",
+                "--audit-tet-trajectory",
+            ]
+        )
     if scene["needs_exact_collision"]:
         command.extend(["--prebuilt-collision-usd", windows_path(exact_collision)])
     command_path = output / "run_command.json"
@@ -442,6 +671,16 @@ def main():
             "scene": args.scene,
             "layout": layout,
             "frames": args.frames,
+            "production_target": deep_spec,
+            "suggested_capture": (
+                {
+                    "physics_frame_start": deep_spec["visible_start_frame"],
+                    "physics_frame_stop": deep_spec["visible_stop_frame"],
+                    "physics_frame_stride_for_30fps": 2,
+                }
+                if deep_spec is not None
+                else None
+            ),
             "command": command,
         },
     )
@@ -455,6 +694,7 @@ def main():
                 "event_config": str(event_config_path),
                 "command_file": str(command_path),
                 "source_frames": [source_start, source_stop],
+                "production_target": deep_spec,
             },
             indent=2,
         )
