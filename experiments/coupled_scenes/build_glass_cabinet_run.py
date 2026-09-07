@@ -184,6 +184,17 @@ def parse_args():
         ),
     )
     parser.add_argument(
+        "--emission-chunk-particles",
+        type=int,
+        default=None,
+        help=(
+            "Opt into bounded density-set appends for a continuous pour. "
+            "Only the current chunk is rewritten; completed chunks are left "
+            "to PhysX. Try 8192 locally or 16384 on the server. This keeps "
+            "substep inlet timing, and is not a guaranteed whole-run speedup."
+        ),
+    )
+    parser.add_argument(
         "--output",
         type=Path,
         default=None,
@@ -274,6 +285,14 @@ def main():
         or args.compact_impact_probe
         or args.server_deep_pour
     )
+    if args.emission_chunk_particles is not None:
+        if args.emission_chunk_particles <= 0:
+            raise ValueError("--emission-chunk-particles must be positive")
+        if not use_continuous_inlet:
+            raise ValueError(
+                "--emission-chunk-particles requires a continuous inlet probe "
+                "or --server-deep-pour; it does not apply to a pre-filled pool"
+            )
 
     # The apparatus sits on the already validated scene-local support.  The
     # visible glass remains 15 mm.  Its collision proxy extends outward to
@@ -479,7 +498,9 @@ def main():
         "layout": layout,
         "scene": args.scene,
         "particle_set_strategy": (
-            "preauthored_frame_sets"
+            "chunked_density_sets"
+            if args.emission_chunk_particles is not None
+            else "preauthored_frame_sets"
             if args.server_deep_pour
             else "single_shared_density_set"
             if use_continuous_inlet or use_pool_drop
@@ -557,7 +578,7 @@ def main():
                 "static_slab"
                 if use_pool_drop
                 else "preauthored_frame_inlet"
-                if args.server_deep_pour
+                if args.server_deep_pour and args.emission_chunk_particles is None
                 else "continuous_inlet"
                 if use_continuous_inlet
                 else "continuous_subframe_ballistic"
@@ -633,6 +654,8 @@ def main():
             else 2097152
         ),
     }
+    if args.emission_chunk_particles is not None:
+        event_config["emission_chunk_particles"] = args.emission_chunk_particles
     write_json(body_config_path, body_config)
     write_json(event_config_path, event_config)
 

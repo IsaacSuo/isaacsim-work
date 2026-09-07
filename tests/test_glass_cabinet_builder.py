@@ -1,11 +1,19 @@
 from __future__ import annotations
 
 import unittest
+from unittest.mock import patch
 
-from experiments.coupled_scenes.build_glass_cabinet_run import deep_pour_spec
+from experiments.coupled_scenes.build_glass_cabinet_run import deep_pour_spec, parse_args
 
 
 class GlassCabinetBuilderTests(unittest.TestCase):
+    def test_chunked_emission_is_explicit_opt_in(self):
+        with patch("sys.argv", ["builder"]):
+            self.assertIsNone(parse_args().emission_chunk_particles)
+        with patch("sys.argv", ["builder", "--server-deep-pour",
+                                "--emission-chunk-particles", "8192"]):
+            self.assertEqual(parse_args().emission_chunk_particles, 8192)
+
     def test_deep_pour_meets_original_cabinet_three_centimetre_target(self):
         inner_size = (2.0, 1.1272727272727272, 1.4909090909090907)
 

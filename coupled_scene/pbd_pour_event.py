@@ -20,6 +20,12 @@ from scipy.spatial import cKDTree
 
 PRODUCT = "coupled_scene_pbd_pour_event"
 SCHEMA = 1
+PREAUTHORED_SET_STRATEGIES = {
+    "per_emission_frame_sets",
+    "preauthored_frame_sets",
+    "preauthored_density_sets",
+}
+MULTI_SET_STRATEGIES = PREAUTHORED_SET_STRATEGIES | {"chunked_density_sets"}
 
 
 def _sha256_file(path: Path) -> str:
@@ -150,6 +156,31 @@ def _axis_samples(centre: float, extent: float, spacing: float) -> np.ndarray:
     return centre + offsets
 
 
+def _emission_chunks(batch_records: list[dict], capacity: int) -> list[list[dict]]:
+    """Pack consecutive births without changing their timing or ID order.
+
+    Only the last chunk may grow during emission. All earlier chunks retain
+    their native simulated state, bounding each append's array traffic.
+    """
+    if isinstance(capacity, bool) or int(capacity) != capacity or capacity < 1:
+        raise ValueError("emission_chunk_particles must be a positive integer")
+    chunks = []
+    current_count = 0
+    for record in batch_records:
+        count = len(record["positions"])
+        if count > capacity:
+            raise ValueError(
+                f"Emission birth has {count} particles, exceeding chunk capacity "
+                f"{capacity}; increase emission_chunk_particles"
+            )
+        if not chunks or current_count + count > capacity:
+            chunks.append([])
+            current_count = 0
+        chunks[-1].append(record)
+        current_count += count
+    return chunks
+
+
 class PbdPourEvent:
     """Runtime owner for a pre-authored, append-only PBD pour."""
 
@@ -200,6 +231,17 @@ class PbdPourEvent:
         self.active_id_chunks = []
         self.batch_records = []
         self.enabled_batches = 0
+        self.emission_statistics = {
+            "activation_count": 0,
+            "old_particle_rows_read": 0,
+            "particle_rows_written": 0,
+            "maximum_old_particle_rows_per_activation": 0,
+            "authoring_seconds": 0.0,
+            "attribute_read_seconds": 0.0,
+            "array_build_seconds": 0.0,
+            "attribute_write_seconds": 0.0,
+            "activation_update_seconds": 0.0,
+        }
         self._physx_bindings = physx_settings_bindings
         self.solver_statistics_interface = None
         self.solver_statistics_setup_error = None
@@ -678,10 +720,41 @@ class PbdPourEvent:
                 "particle_set_strategy", "single_shared_append_only_set"
             )
         )
-        if particle_set_strategy in {
-            "per_emission_frame_sets",
-            "preauthored_frame_sets",
-        }:
+        chunk_capacity = self.configuration.get("emission_chunk_particles", 16384)
+        particle_set_count = 1
+        if particle_set_strategy == "chunked_density_sets":
+            chunks = _emission_chunks(self.batch_records, chunk_capacity)
+            particle_set_count = len(chunks)
+            self.particle_mass_attr = None
+            for chunk_index, records in enumerate(chunks):
+                particle_path = Sdf.Path(
+                    f"/World/CoupledEvent/EmitterChunk_{chunk_index:04d}"
+                )
+                particle_prim = particleUtils.add_physx_particleset_pointinstancer(
+                    stage, particle_path, Vt.Vec3fArray(), Vt.Vec3fArray(),
+                    particle_system_path, self_collision=True, fluid=True,
+                    particle_group=0, particle_mass=0.0, density=source["density"],
+                )
+                UsdPhysics.MassAPI(particle_prim).GetMassAttr().Clear()
+                particle_prim.CreateAttribute(
+                    "physxParticle:maxParticles", Sdf.ValueTypeNames.Int
+                ).Set(sum(len(record["positions"]) for record in records))
+                enabled = particle_prim.GetAttribute("physxParticle:particleEnabled")
+                if not enabled:
+                    raise RuntimeError("PBD emitter chunk has no particleEnabled attribute")
+                enabled.Set(False)
+                instancer = UsdGeom.PointInstancer.Get(stage, particle_path)
+                for index, record in enumerate(records):
+                    record["instancer"] = instancer
+                    record["enabled"] = enabled
+                    record["starts_chunk"] = index == 0
+                prototype = UsdGeom.Imageable.Get(
+                    stage, particle_path.AppendChild("particlePrototype0")
+                )
+                if prototype:
+                    prototype.MakeInvisible()
+        elif particle_set_strategy in PREAUTHORED_SET_STRATEGIES:
+            particle_set_count = len(self.batch_records)
             for batch_index, record in enumerate(self.batch_records):
                 particle_path = Sdf.Path(
                     f"/World/CoupledEvent/EmitterBatch_{batch_index:04d}"
@@ -695,16 +768,31 @@ class PbdPourEvent:
                     self_collision=True,
                     fluid=True,
                     particle_group=0,
-                    # PhysicsMassAPI.mass is the mass of the complete particle
-                    # set. PhysX divides it by the number of particles, so a
-                    # pre-authored batch must carry its full water mass here.
+                    # This helper takes PER-PARTICLE mass and multiplies by N
+                    # itself. Passing total batch mass here would create N
+                    # times too much water mass. Density sets match the proven
+                    # shared emitter's density-derived mass policy instead.
                     particle_mass=(
-                        len(record["positions"])
-                        * source["density"]
-                        * spacing**3
+                        0.0
+                        if particle_set_strategy == "preauthored_density_sets"
+                        else source["density"] * spacing**3
                     ),
                     density=source["density"],
                 )
+                if particle_set_strategy == "preauthored_density_sets":
+                    UsdPhysics.MassAPI(particle_prim).GetMassAttr().Clear()
+                else:
+                    # Verify the installed helper's contract against the USD
+                    # it actually authored, before attaching the physics stage.
+                    expected_mass = len(record["positions"]) * source["density"] * spacing**3
+                    authored_mass = UsdPhysics.MassAPI(particle_prim).GetMassAttr().Get()
+                    if authored_mass is None or not np.isclose(
+                        authored_mass, expected_mass, rtol=1e-6, atol=0.0
+                    ):
+                        raise RuntimeError(
+                            f"Particle batch mass mismatch: {authored_mass} kg, "
+                            f"expected {expected_mass} kg for {len(record['positions'])} particles"
+                        )
                 particle_prim.CreateAttribute(
                     "physxParticle:maxParticles", Sdf.ValueTypeNames.Int
                 ).Set(len(record["positions"]))
@@ -846,16 +934,18 @@ class PbdPourEvent:
                 "particles_per_emission_frame": particles_per_emission_frame,
                 "emission_frame_count": int(len(birth_frames)),
                 "batch_count": int(len(self.batch_records)),
-                "particle_set_count": (
-                    len(self.batch_records)
-                    if particle_set_strategy
-                    in {"per_emission_frame_sets", "preauthored_frame_sets"}
-                    else 1
+                "particle_set_count": particle_set_count,
+                "emission_chunk_particles": (
+                    int(chunk_capacity)
+                    if particle_set_strategy == "chunked_density_sets" else None
                 ),
                 "particle_set_strategy": particle_set_strategy,
                 "mass_policy": (
                     "density_derived_constant_per_particle_mass"
-                    if particle_set_strategy == "single_shared_density_set"
+                    if particle_set_strategy in {
+                        "single_shared_density_set", "preauthored_density_sets",
+                        "chunked_density_sets",
+                    }
                     else "authored_total_mass"
                 ),
                 "maximum_particles": int(next_id),
@@ -988,6 +1078,7 @@ class PbdPourEvent:
             "product": "coupled_scene_primary_fluid_cache",
             "created_utc": datetime.now(timezone.utc).isoformat(),
             **self.metadata,
+            "emission_statistics": dict(self.emission_statistics),
             "state": {
                 "complete": bool(complete),
                 "valid": valid,
@@ -1010,19 +1101,24 @@ class PbdPourEvent:
             == due
         ):
             record = self.batch_records[self.enabled_batches]
-            if self.particle_set_strategy in {
-                "per_emission_frame_sets",
-                "preauthored_frame_sets",
-            }:
+            authoring_start = time.perf_counter()
+            if self.particle_set_strategy in PREAUTHORED_SET_STRATEGIES:
                 record["enabled"].Set(True)
                 self.active_instancers.append(record["instancer"])
             else:
-                positions_attr = self.particle_instancer.GetPositionsAttr()
-                velocities_attr = self.particle_instancer.GetVelocitiesAttr()
-                proto_indices_attr = self.particle_instancer.GetProtoIndicesAttr()
+                if self.particle_set_strategy == "chunked_density_sets":
+                    instancer = record["instancer"]
+                else:
+                    instancer = self.particle_instancer
+                positions_attr = instancer.GetPositionsAttr()
+                velocities_attr = instancer.GetVelocitiesAttr()
+                proto_indices_attr = instancer.GetProtoIndicesAttr()
+                read_start = time.perf_counter()
                 current_positions_value = positions_attr.Get()
                 current_velocities_value = velocities_attr.Get()
                 current_proto_indices_value = proto_indices_attr.Get()
+                self.emission_statistics["attribute_read_seconds"] += time.perf_counter() - read_start
+                build_start = time.perf_counter()
                 current_positions = np.asarray(
                     current_positions_value
                     if current_positions_value is not None
@@ -1053,13 +1149,27 @@ class PbdPourEvent:
                         np.zeros(len(record["positions"]), dtype=np.int32),
                     )
                 )
+                self.emission_statistics["array_build_seconds"] += time.perf_counter() - build_start
+                write_start = time.perf_counter()
                 positions_attr.Set(self._Vt.Vec3fArray.FromNumpy(positions))
                 velocities_attr.Set(self._Vt.Vec3fArray.FromNumpy(velocities))
                 proto_indices_attr.Set(self._Vt.IntArray.FromNumpy(proto_indices))
+                self.emission_statistics["attribute_write_seconds"] += time.perf_counter() - write_start
+                self.emission_statistics["old_particle_rows_read"] += len(current_positions)
+                self.emission_statistics["particle_rows_written"] += len(positions)
+                self.emission_statistics["maximum_old_particle_rows_per_activation"] = max(
+                    self.emission_statistics["maximum_old_particle_rows_per_activation"],
+                    len(current_positions),
+                )
+                if self.particle_set_strategy == "chunked_density_sets" and record["starts_chunk"]:
+                    record["enabled"].Set(True)
+                    self.active_instancers.append(instancer)
                 if self.particle_mass_attr is not None:
                     self.particle_mass_attr.Set(
                         float(len(positions) * self.per_particle_mass)
                     )
+            self.emission_statistics["authoring_seconds"] += time.perf_counter() - authoring_start
+            self.emission_statistics["activation_count"] += 1
             self.active_id_chunks.append(record["ids"])
             self.enabled_batches += 1
             changed = True
@@ -1074,7 +1184,9 @@ class PbdPourEvent:
                     f"Missed PBD emitter activation {next_due} before {due}"
                 )
         if changed:
+            update_start = time.perf_counter()
             simulation_app.update()
+            self.emission_statistics["activation_update_seconds"] += time.perf_counter() - update_start
 
     def state_arrays(self):
         if not self.active_id_chunks:
@@ -1083,10 +1195,7 @@ class PbdPourEvent:
                 np.empty((0, 3), dtype=np.float32),
                 np.empty((0,), dtype=np.int64),
             )
-        if self.particle_set_strategy in {
-            "per_emission_frame_sets",
-            "preauthored_frame_sets",
-        }:
+        if self.particle_set_strategy in MULTI_SET_STRATEGIES:
             positions = np.ascontiguousarray(
                 np.concatenate(
                     [
