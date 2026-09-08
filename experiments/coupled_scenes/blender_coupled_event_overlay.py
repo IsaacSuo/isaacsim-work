@@ -126,6 +126,12 @@ class CoupledEventOverlay:
         scene.collection.children.link(self.collection)
         self.glass_material = _glass_material()
         self.water_material = _water_material()
+        self.hide_upstream = os.environ.get('COUPLED_HIDE_UPSTREAM', '0') == '1'
+        if self.hide_upstream:
+            if not payload.get('conditioned_inlet'):
+                raise ValueError('COUPLED_HIDE_UPSTREAM requires a conditioned inlet outlet plane')
+            from experiments.coupled_scenes.blender_conditioned_inlet import hide_water_above_outlet
+            hide_water_above_outlet(self.water_material, payload['conditioned_inlet']['outlet_centre'][1])
         self.panels = []
         cabinet = payload["cabinet"]
         centre = cabinet["centre"]
@@ -186,6 +192,9 @@ class CoupledEventOverlay:
         self.apparatus_light = _add_cabinet_area_light(
             self.collection, centre, inner
         )
+        if payload.get('conditioned_inlet') and not self.hide_upstream:
+            from experiments.coupled_scenes.blender_conditioned_inlet import add_guide
+            add_guide(scene, self.collection, payload['conditioned_inlet'])
 
         self.surface_directory = (
             Path(surface_directory).resolve() if surface_directory is not None else None
@@ -251,6 +260,8 @@ class CoupledEventOverlay:
             "apparatus_light": self.apparatus_light.name,
             "apparatus_light_power_w": float(self.apparatus_light.data.energy),
             "coordinate_conversion": "Isaac (x,y,z) -> Blender (x,-z,y)",
+            "hide_upstream": self.hide_upstream,
+            "upstream_visibility_policy": 'surface_transparent_volume_zero_above_outlet_and_guide_omitted' if self.hide_upstream else 'full_surface_and_guide',
         }
 
 

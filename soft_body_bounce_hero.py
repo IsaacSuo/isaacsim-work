@@ -2693,6 +2693,7 @@ def main():
                     simulation.fetch_results()
                     coupled_event.sample_solver_resources(frame + 1, substep)
                     simulation_app.update()
+                    coupled_event.after_substep(simulation_app, frame + 1, substep)
             else:
                 if coupled_event is not None:
                     coupled_event.enable_due(frame + 1, 0, simulation_app)

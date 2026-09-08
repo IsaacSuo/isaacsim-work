@@ -426,6 +426,9 @@ class PbdPourEvent:
             raise ValueError("required_body_kinds must not be empty")
         fluid_rest_offset = 0.5 * spacing
         particle_contact_offset = fluid_rest_offset / 0.6
+        authored_particle_contact_offset = float(source.get('particle_contact_offset', particle_contact_offset))
+        if 'particle_contact_offset' in source and (not np.isfinite(authored_particle_contact_offset) or authored_particle_contact_offset <= particle_contact_offset):
+            raise ValueError('Explicit particle_contact_offset must exceed solid_rest_offset')
         particle_system_path = Sdf.Path("/World/CoupledEvent/ParticleSystem")
         particle_system = particleUtils.add_physx_particle_system(
             stage,
@@ -433,7 +436,7 @@ class PbdPourEvent:
             simulation_owner=physics_scene.GetPath(),
             contact_offset=particle_contact_offset + 0.001,
             rest_offset=particle_contact_offset,
-            particle_contact_offset=particle_contact_offset,
+            particle_contact_offset=authored_particle_contact_offset,
             solid_rest_offset=particle_contact_offset,
             fluid_rest_offset=fluid_rest_offset,
             enable_ccd=True,
@@ -998,7 +1001,15 @@ class PbdPourEvent:
                 "final_maximum_speed_m_s": None,
             },
         }
+        self.conditioned_inlet = None
+        if self.configuration.get('conditioned_inlet'):
+            from coupled_scene.conditioned_inlet import ConditionedInlet
+            self.conditioned_inlet = ConditionedInlet(self, self.configuration['conditioned_inlet'])
         self._write_manifest(complete=False)
+
+    def after_substep(self, simulation_app, frame, substep):
+        if self.conditioned_inlet is not None:
+            self.conditioned_inlet.after_substep(simulation_app, frame, substep)
 
     def prepare_preroll(self, bodies, simulation_app) -> None:
         """Author a full pool and suspend falling bodies before stage attach."""
