@@ -20,6 +20,7 @@ from experiments.model_material.run_experiments import (  # noqa: E402
     SCENE_CONFIG_PATH,
     load_scene_context,
 )
+from coupled_scene.water_defaults import DEFAULT_VORTICITY_CONFINEMENT
 
 
 PHYSICS_FRAMES_PER_SECOND = 60
@@ -600,7 +601,7 @@ def main():
             "damping": 0.01,
             "settle_damping": 0.5 if use_pool_drop else 0.01,
             "viscosity": 0.002,
-            "vorticity_confinement": 0.02,
+            "vorticity_confinement": DEFAULT_VORTICITY_CONFINEMENT,
             "surface_tension": 0.0074,
             "cohesion": 0.01,
             "adhesion": 0.0,

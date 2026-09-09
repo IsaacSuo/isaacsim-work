@@ -1,0 +1,63 @@
+{
+  "schema": 1,
+  "product": "surface_study_layout",
+  "environment": "warehouse",
+  "placement_isaac": [0.041443, -0.5000030728118722, -8.076415],
+  "tank": {
+    "inner_size_m": [1.6, 0.28, 0.9],
+    "floor_above_support_m": 0.72,
+    "glass_thickness_m": 0.012,
+    "proxy_thickness_m": 0.04,
+    "reference_water_depth_m": 0.12
+  },
+  "camera": {
+    "count": 8,
+    "radius_m": 2.9,
+    "height_above_tank_m": 2.15,
+    "lens_mm": 46,
+    "resolution": [1280, 960]
+  },
+  "fps": 60,
+  "cases": [
+    {
+      "id": "01_still_water",
+      "title": "静水",
+      "duration_s": 6,
+      "actuator": null,
+      "motion": null,
+      "observation": "记录静止液面、水位与容器接触边缘；服务器先完成水体静置。"
+    },
+    {
+      "id": "02_sloshing",
+      "title": "容器晃动",
+      "duration_s": 10,
+      "actuator": null,
+      "motion": {"target": "Tank", "kind": "windowed_sine", "axis": 0, "amplitude_m": 0.06, "frequency_hz": 0.65, "start_s": 2, "stop_s": 6},
+      "observation": "水槽左右平移，随后停住；观察两侧水位、惯性运动与停止后的余波。"
+    },
+    {
+      "id": "03_wave_propagation",
+      "title": "自由波浪传播",
+      "duration_s": 6,
+      "actuator": "Plunger",
+      "motion": {"target": "Plunger", "kind": "pulse", "axis": 1, "amplitude_m": -0.098, "start_s": 2, "stop_s": 2.6},
+      "observation": "中心压头一次下压并退出；自由传播片段须由服务器选取在边界回波返回前，不能把有限水槽声称为无限水域。"
+    },
+    {
+      "id": "04_wave_reflection",
+      "title": "液面传播与反弹",
+      "duration_s": 10,
+      "actuator": "Paddle",
+      "motion": {"target": "Paddle", "kind": "pulse", "axis": 0, "amplitude_m": 0.055, "start_s": 2, "stop_s": 2.8},
+      "observation": "左端推波板前推后复位，记录波前走向右侧硬壁及返回。"
+    },
+    {
+      "id": "05_surface_recovery",
+      "title": "受扰后的恢复",
+      "duration_s": 12,
+      "actuator": "Plunger",
+      "motion": {"target": "Plunger", "kind": "pulse", "axis": 1, "amplitude_m": -0.098, "start_s": 2, "stop_s": 2.6},
+      "observation": "与自由传播使用完全相同的单次扰动，退出后继续观察自然恢复；不预设已在片段末尾平静。"
+    }
+  ]
+}

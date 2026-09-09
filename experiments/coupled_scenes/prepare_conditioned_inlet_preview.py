@@ -1,4 +1,4 @@
-"""Prepare the validated v90 inlet configuration; never launch simulation."""
+"""Prepare the v90 inlet layout with the accepted v91 water default; no GPU launch."""
 import argparse
 import json
 from pathlib import Path
@@ -44,10 +44,12 @@ def prepare(output, scenes_root, isaac_python, inlet_frames=60, post_frames=18):
     }
     run['notes'] = {
         'preset': str(PRESET),
+        'water_default_revision': '2026-09-10_v91_vorticity10',
+        'vorticity_confinement': event['source']['vorticity_confinement'],
         'nominal_birth_particles': 1260 * inlet_frames,
         'nominal_birth_litres': 1260 * inlet_frames * 0.004 ** 3 * 1000,
         'nominal_birth_litres_per_second': 4.8384,
-        'validation': 'Local v90 validated 60 inlet frames plus 18 post frames only; longer runs require validation.',
+        'validation': 'Local v91 vorticity=10 passed the v90 short layout (60 inlet + 18 post frames); longer runs require validation.',
         'assets': 'Scene, prebuilt collision USD, model and simulator must be provided on target; this tool does not install them.',
     }
     output.mkdir(parents=True, exist_ok=False)

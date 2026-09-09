@@ -1,5 +1,14 @@
 # Glass-cabinet deep-pour server handoff
 
+## 2026-09-10 默认水材质更新
+
+默认涡量补偿现为 `source.vorticity_confinement = 10.0`。普通倾倒 builder、
+运行入口缺省值、conditioned-inlet 服务器预设均已更新；其他物理参数不变。
+最新入口布局与服务器执行说明以 [CONDITIONED_INLET.md](../../coupled_scene/CONDITIONED_INLET.md)
+为准。已生成的任务 JSON 若显式保留 0.02，更新代码后仍会使用 0.02：应在
+新任务配置中明确改成 10，保留服务器原来的水量、入口和显存配置。
+本地短版已检查并渲染通过；不把它当成大水量/长时间验证。
+
 ## 最新交接：分块发射为可选方案，默认配置不变
 
 先阅读 [分块实现与实测记录](EMITTER_CHUNK_BENCHMARK.md)。本次同步的是代码、

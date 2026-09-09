@@ -17,6 +17,8 @@ from pathlib import Path
 import numpy as np
 from scipy.spatial import cKDTree
 
+from coupled_scene.water_defaults import water_vorticity
+
 
 PRODUCT = "coupled_scene_pbd_pour_event"
 SCHEMA = 1
@@ -454,7 +456,7 @@ class PbdPourEvent:
             friction=float(source.get("friction", 0.05)),
             damping=float(source.get("damping", 0.01)),
             viscosity=float(source.get("viscosity", 0.002)),
-            vorticity_confinement=float(source.get("vorticity_confinement", 0.02)),
+            vorticity_confinement=water_vorticity(source),
             surface_tension=float(source.get("surface_tension", 0.0074)),
             cohesion=float(source.get("cohesion", 0.01)),
             adhesion=float(source.get("adhesion", 0.0)),
@@ -905,6 +907,8 @@ class PbdPourEvent:
             },
             "source": {
                 "spacing": spacing,
+                "vorticity_confinement": float(stage.GetPrimAtPath(material_path).GetAttribute(
+                    "physxPBDMaterial:vorticityConfinement").Get()),
                 "centre": source["centre"].tolist(),
                 "size": source["size"].tolist(),
                 "velocity": source["velocity"].tolist(),
