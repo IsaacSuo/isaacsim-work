@@ -1,0 +1,36 @@
+{
+  "schema": 1,
+  "environment": "warehouse",
+  "placement_isaac": [0.041443, -0.5000030728118722, -8.076415],
+  "floor_above_support_m": 0.72,
+  "fps": 60,
+  "camera": {"count": 8, "radius_m": 3.0, "height_m": 1.75, "lens_mm": 46, "resolution": [1280, 960]},
+  "cases": [
+    {
+      "id": "01_container_transfer", "title": "两容器间倾倒", "duration_s": 10,
+      "receiver_size_m": [1.30, 0.32, 0.75],
+      "donor_size_m": [0.44, 0.30, 0.32],
+      "donor_lip_pivot_m": [-0.23, 0.75, 0.0], "initial_depth_m": 0.17,
+      "motion": {"target": "Donor", "kind": "tilt_hold_return", "axis": 2, "angle_deg": -105, "start_s": 2, "tilt_end_s": 5, "hold_end_s": 7, "stop_s": 9},
+      "review_times_s": [0, 3.5, 5.5],
+      "observation": "上方容器缓慢绕出水沿翻转，停留后回正；下方接水槽初始为空，水应来自上方预填体积。"
+    },
+    {
+      "id": "02_stirring", "title": "搅拌", "duration_s": 10,
+      "tank_size_m": [0.80, 0.38, 0.80], "initial_depth_m": 0.20,
+      "blade_span_m": 0.46, "blade_height_m": 0.10, "blade_thickness_m": 0.025,
+      "blade_centre_height_m": 0.115,
+      "motion": {"target": "Impeller", "kind": "spin_ramp", "axis": 1, "speed_rad_s": 1.8, "start_s": 2, "stop_s": 8, "ramp_s": 1},
+      "review_times_s": [0, 4.5, 8.5],
+      "observation": "十字桨叶在水中平滑起转，保持转速，再减速停止；观察环流及停机后的余流。"
+    },
+    {
+      "id": "03_piston_push", "title": "活塞推水", "duration_s": 10,
+      "tank_size_m": [1.50, 0.34, 0.45], "initial_depth_m": 0.16,
+      "piston_start_x_m": -0.58, "piston_thickness_m": 0.035, "piston_gap_m": 0.004,
+      "motion": {"target": "Piston", "kind": "push_hold", "axis": 0, "stroke_m": 0.45, "start_s": 2, "stop_s": 5},
+      "review_times_s": [0, 3.5, 5.5],
+      "observation": "水只预填在推板前方；推板前进 45 cm 后保持不动，后方留作干区，不安排回抽动作。"
+    }
+  ]
+}
